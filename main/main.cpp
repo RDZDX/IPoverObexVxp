@@ -1,0 +1,1491 @@
+#include <Console.h>
+#include <IPtoStream.h>
+#include <opp.h>
+#include <string.h>
+#include <vmchset.h>
+#include <vmgraph.h>
+#include <vmio.h>
+#include <vmstdlib.h>
+#include <vmsys.h>
+#include <vmtimer.h>
+
+#include <array>
+#include <cctype>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+
+#include "Console_io.h"
+#include "T2Input.h"
+#include "main.h"
+
+int scr_w = 0, scr_h = 0;
+VMUINT8* layer_bufs[2] = {0, 0};
+VMINT layer_hdls[2] = {-1, -1};
+
+volatile bool key_pending = false;
+volatile VMINT pending_event = 0;
+volatile VMINT pending_keycode = 0;
+
+VMCHAR command[100] = {};
+VMCHAR portx[100] = {};
+VMCHAR login[100] = {};
+VMCHAR password[100] = {};
+
+VMBOOL missingConfigFile = VM_TRUE;
+VMBOOL flightMode = VM_FALSE;
+VMBOOL startup = VM_FALSE;
+VMCHAR text[220] = {};
+VMCHAR text11[100] = {};
+
+VMCHAR text_pcr[100] = {};
+
+VMCHAR text22[100] = {};
+VMCHAR text33[100] = {};
+VMCHAR text44[100] = {};
+VMCHAR text55[100] = {};
+
+VMCHAR text222[100] = {};
+VMCHAR text333[100] = {};
+VMCHAR text444[100] = {};
+VMCHAR text555[] = "\n";
+
+VMCHAR my_path[100] = {};
+VMCHAR my_file_name[100] = {};
+VMINT lenght_555;
+VMINT lenght_666;
+
+VMCHAR text6[100];
+VMCHAR text3[41] = "IPoverObexTest\n\n";
+
+VMCHAR text4[250] =  "about      - show program information\nhelp       - list available commands\nlistbt     - list paired BT connections\ndisconnect - disconnect BT\nconnect    - connect to BT by index\n";
+VMCHAR text5[250] =  "export     - save buffer to txt file\ncls        - clear screen\nexit       - quits the program\n\n";
+
+//VMCHAR text4[150] =
+//    "about        - show program information\nhelp         - list available "
+//    "commands\necho         - print string\ndir          - list directory "
+//    "content\n";
+//VMCHAR text5[172] =
+//    "cd           - change current directory\npath         - sets a "
+//    "path\nmkdir        - creates a directory\nrmdir        - deletes a "
+//    "directory\ncopy         - copies a file\n";
+VMCHAR text10[232] =
+    "append       - joins two text files\nrename       - renames a file\nmove  "
+    "       - move a file\ndisconnect   - disconnect BT \nconnect      - "
+    "connect to BT by index\ncls          - clear screen\nexit         - quits "
+    "the program\n\n";
+VMCHAR text88[44] = "The syntax of the command is incorrect.\n\n";
+VMINT hnd;
+VMINT test;
+VMINT rrrrrrr = 0;
+VMINT page11 = 0;
+VMINT plus_line = 29;  // dirtyhack: compensate 29 lines of ignored first display
+struct vm_fileinfo_ext fileInfo;
+VMWCHAR fullPath1[100];
+VMWCHAR fullPath2[100];
+VMWCHAR fullPath3[100];
+VMWCHAR fullPath4[100];
+VMUINT nread;
+VMFILE f_read;
+VMFILE f_write;
+VMCHAR new_data[2000];
+
+VMINT network_timer_id = -1;
+
+extern void console_execute_command(const char* cmd);
+
+extern int myScroll;
+
+char input_buffer[256] = {}; //??????????????????
+int input_length = 0; //???????????????
+//int input_len = 0;
+bool remote_mode = false; //++++++++++++++++++++++++++++++++++++++++
+bool socket_output = true; //remove !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+//char command_buffer[256];
+
+bool bt_disconnect_pending = false;
+
+static char buf[1024];
+
+Console console;
+T2Input t2input;
+
+int main_timer_id = -1;
+
+int timeout_timer_id = -1;  // Timer for waiting telnet to connect
+int timeout = 0;            // Timeout counter
+
+char ip[BUF_SIZE];
+
+char port1[BUF_SIZE];
+
+VMINT timer_id1 = -1;
+VMINT num = 0;
+
+vm_srv_bt_cm_dev_struct bt_info;
+
+int tcp_id = -1;
+int tcpl_id = -1;
+
+bool connected = false;
+bool connected1 = false;
+bool bt_off = false;
+bool bt_empty = false;
+bool show_msg = false;
+
+bool bt_initialized = false;
+
+VMUINT8 my_mac[6];
+
+struct CommandContext {
+    const char* arg1;
+    const char* arg2;
+    const char* arg3;
+};
+
+struct CommandHandler {
+    const char* name;
+    void (*handler)(const CommandContext&);
+};
+
+struct ParsedCommand {
+    char cmd[64];
+    char arg1[128];
+    char arg2[128];
+    char arg3[128];
+};
+
+ConnectionState connState = ConnectionState::Disconnected;
+
+#ifndef WIN32
+extern "C" void _sbrk() {}
+extern "C" void _write() {}
+extern "C" void _close() {}
+extern "C" void _lseek() {}
+extern "C" void _open() {}
+extern "C" void _read() {}
+extern "C" void _exit() {}
+extern "C" void _getpid() {}
+extern "C" void _kill() {}
+extern "C" void _fstat() {}
+extern "C" void _isatty() {}
+#endif
+
+void handle_sysevt(VMINT message, VMINT param);
+void handle_keyevt(VMINT event, VMINT keycode);
+
+void key_handler(VMINT event, VMINT keycode);
+
+void create_app_txt_path(VMWSTR text, VMSTR extt);
+void checkFileExist(void);
+VMINT parseText(VMSTR text);
+VMINT parseText1(VMSTR text);
+VMINT parseText2(VMSTR text);
+void timer1(int a);
+void trim(char* result_data, const char* input_data);
+void create_app_txt_path1(void);
+void create_supdir_path(VMWSTR result, VMWSTR source);
+void create_search_path(VMWSTR result, VMWSTR source, VMSTR text);
+VMINT cb(VMINT act, VMUINT32 total, VMUINT32 completed, VMINT hdl);
+void trim_left_symbols(char* result_data, const char* input_data);
+void extract_path(char* result_data, const char* input_data);
+void stringReverse(char* str);
+void trim_single_spec_symb(char* result, const char* input);
+int cprintf(char const* const format, ...);
+
+void cmd_help(const CommandContext& ctx);
+void cmd_about(const CommandContext& ctx);
+void cmd_cls(const CommandContext& ctx);
+void cmd_exit(const CommandContext& ctx);
+void cmd_line(const CommandContext& ctx);
+void execute_command(const ParsedCommand& cmd);
+void cmd_dir(const CommandContext& ctx);
+void cmd_cd(const CommandContext& ctx);
+void cmd_echo(const CommandContext& ctx);
+ParsedCommand parse_command(const char* input);
+void cmd_remote(const CommandContext&);
+void cmd_local(const CommandContext&);
+void tcp_callback(int id, TCPEvent event, uint32_t val);
+static void watchdog_timer(VMINT tid);
+void cleanup_resources();
+
+void prompt_tick();
+void process_local_command(const char*);
+//void process_remote_command(const char*);
+void on_input_complete(const char* text);
+//void process_remote_command1(const char* input);
+void print_bt_address(int num);
+//void start_network();
+void set_bt_address(int num_index);
+void print_bt_address1(int num);
+void cmd_start_network(const CommandContext& ctx);
+void cmd_stop_network(const CommandContext& ctx);
+void cmd_listbt(const CommandContext& ctx);
+void cmd_export(const CommandContext& ctx);
+
+CommandHandler commands[] = {
+    {"help", cmd_help},
+    {"about", cmd_about},
+    {"cls", cmd_cls},
+    {"exit", cmd_exit},
+    {"line", cmd_line},
+    {"cd", cmd_cd},
+    {"dir", cmd_dir},
+    {"echo", cmd_echo},
+    {"remote", cmd_remote},
+    {"local", cmd_local},
+    {"connect", cmd_start_network},
+    {"disconnect", cmd_stop_network},
+    {"listbt", cmd_listbt},
+    {"export", cmd_export},
+};
+
+void vm_main(void) {
+    //	layer_hdl[0] = -1;
+    scr_w = vm_graphic_get_screen_width();
+    scr_h = vm_graphic_get_screen_height();
+    console.init();
+    t2input.init();
+    t2input.set_input_callback(on_input_complete);
+    vm_reg_sysevt_callback(handle_sysevt);
+    vm_reg_keyboard_callback(handle_keyevt);
+    checkFileExist();
+    create_app_txt_path1();
+
+    num = vm_btcm_get_dev_num(VM_SRV_BT_CM_RECENT_USED_DEV);
+
+    if (num <= 0) {
+        bt_empty = true;
+        show_msg = true;
+        //          cprintf("Need initialy pair with BT host !");
+        sprintf(text_pcr, "%s", "Need initialy pair with BT host !\n\n");
+        return;
+
+    } else if (vm_btcm_get_power_status() == VM_SRV_BT_CM_POWER_OFF) {
+        bt_off = true;
+        show_msg = true;
+        sprintf(text_pcr, "%s", "Please turn on bluetooth !\n\n");
+        return;
+
+    } else {
+        set_bt_address(0);
+    }
+
+    //start_network();
+    //cmd_start_network(CommandContext{ nullptr });
+    cmd_start_network(CommandContext{ "1", "", "" });
+}
+
+void draw() {
+    vm_graphic_fill_rect(layer_bufs[1], 0, 0, scr_w, scr_h, tr_color, tr_color);
+
+    if (myScroll == 0) {
+        vm_graphic_line(layer_bufs[1], console.cursor_x * char_width,
+                        (console.cursor_y + 1) * char_height,
+                        (console.cursor_x + 1) * char_width,
+                        (console.cursor_y + 1) * char_height,
+                        console.cur_textcolor);
+    }
+
+    t2input.draw();
+    if (layer_hdls[0] != -1 && layer_hdls[1] != -1) {
+        vm_graphic_flush_layer(layer_hdls, 2);
+    }
+}
+
+void timer(int tid) { draw(); }
+
+void timeout_f(int tid) {
+    timeout++;  // Increase the timeout counter
+
+    if (timeout > 22 && timeout < 24) {
+        console_str_in("\nTimed out, exiting...");
+    }
+
+    if (timeout > 25) {
+        vm_exit_app();  // Exit
+    }
+}
+
+void handle_sysevt(VMINT message, VMINT param) {
+    switch (message) {
+        case VM_MSG_CREATE:
+        case VM_MSG_ACTIVE:
+            layer_hdls[0] = vm_graphic_create_layer(0, 0, scr_w, scr_h, -1);
+            layer_hdls[1] = vm_graphic_create_layer(0, 0, scr_w, scr_h, tr_color);
+            vm_graphic_set_clip(0, 0, scr_w, scr_h);
+            layer_bufs[0] = vm_graphic_get_layer_buffer(layer_hdls[0]);
+            layer_bufs[1] = vm_graphic_get_layer_buffer(layer_hdls[1]);
+
+            vm_switch_power_saving_mode(turn_off_mode);
+
+            console.scr_buf = layer_bufs[0];
+            console.draw_all();
+
+            t2input.scr_buf = layer_bufs[1];
+            t2input.layer_handle = layer_hdls[1];
+
+            t2input.input_mode = 1;  // Get input from keyboard to buffer
+
+            if (flightMode == VM_TRUE) {
+                console_str_in("Turn off flight mode !\n");
+                vm_create_timer_ex(3000, timer1);
+
+            } else if (missingConfigFile == VM_TRUE) {
+                console_str_in(text3);
+
+                if (show_msg == true) {
+                    show_msg = false;
+                    console_str_in(text_pcr);
+                }
+
+            } else if (missingConfigFile == VM_FALSE) {
+                strcpy(t2input.str_buf, command);
+                t2input.send_c("\r\n");
+
+            } else {
+                console_str_in("Opening: ");
+                console_str_in(ip);
+                console_str_in(":");
+                console_str_in(port1);
+                if (timeout_timer_id == -1) {
+                    timeout_timer_id = vm_create_timer(1000, timeout_f);
+                }
+            }
+
+            if (main_timer_id == -1) {
+                main_timer_id = vm_create_timer(1000 / 15, timer);  // 15 fps
+            }
+
+            break;
+
+        case VM_MSG_PAINT:
+            if (show_msg == true) {
+                show_msg = false;
+                console_str_in(text_pcr);
+            }
+
+            draw();
+            break;
+
+        case VM_MSG_INACTIVE:
+            vm_switch_power_saving_mode(turn_on_mode);
+            cleanup_resources();
+            break;
+
+        case VM_MSG_QUIT:
+            cleanup_resources();
+            if (bt_off == false) {
+                ipts.quit();
+            }
+            break;
+    }
+}
+
+void handle_keyevt(VMINT event, VMINT keycode) {
+    t2input.handle_keyevt(event, keycode);
+}
+
+void key_handler(VMINT event, VMINT keycode) {
+    pending_event = event;
+    pending_keycode = keycode;
+    key_pending = true;
+}
+
+void create_app_txt_path(VMWSTR text, VMSTR extt) {
+    VMWCHAR fullPath[100];
+    VMWCHAR wfile_extension[8];
+
+    vm_get_exec_filename(fullPath);
+    vm_ascii_to_ucs2(wfile_extension, 8, extt);
+    vm_wstrncpy(text, fullPath, vm_wstrlen(fullPath) - 3);
+    vm_wstrcat(text, wfile_extension);
+}
+
+void checkFileExist(void) {
+    VMFILE f_read;
+    VMUINT nread;
+    VMWCHAR file_pathw[100];
+    VMCHAR new_data[500];
+
+    create_app_txt_path(file_pathw, (char*)"txt");
+
+    f_read = vm_file_open(file_pathw, MODE_READ, FALSE);
+
+    if (f_read < 0) {
+        missingConfigFile = VM_TRUE;
+    } else {
+        vm_file_read(f_read, new_data, sizeof(new_data) - 1, &nread);
+        new_data[nread] = '\0';
+        vm_file_close(f_read);
+        if (strlen(new_data) > 1) {
+            parseText(new_data);
+            missingConfigFile = VM_FALSE;
+        } else {
+            missingConfigFile = VM_TRUE;
+        }
+    }
+}
+
+VMINT parseText(VMSTR text) {
+    VMCHAR vns_simbl[2] = {};
+    VMCHAR nauj_strng[100] = {};
+    VMINT counter = 0;
+    VMINT counter1 = 0;
+    VMCHAR* ptr;
+
+    ptr = text;
+
+    while (*ptr != '\0' && counter1 != 5) {
+        if (*ptr == '\r') {
+            ptr++;
+        }
+        if (*ptr == '\n') {
+            counter = counter + 1;
+
+            if (counter == 1) {
+                strcpy(command, nauj_strng);
+            }
+            if (counter == 2) {
+                strcpy(ip, nauj_strng);
+            }
+            if (counter == 3) {
+                strcpy(portx, nauj_strng);
+            }
+            if (counter == 4) {
+                strcpy(login, nauj_strng);
+            }
+            if (counter == 5) {
+                strcpy(password, nauj_strng);
+            }
+
+            counter1 = counter;
+
+            strcpy(nauj_strng, "");
+            ptr++;
+        }
+
+        vns_simbl[0] = *ptr;
+        vns_simbl[1] = '\0';
+
+        if (strlen(nauj_strng) < sizeof(nauj_strng) - 1) {
+            strncat(nauj_strng, vns_simbl, 1);
+        }
+        ptr++;
+    }
+
+    if (counter == 0) {
+        strcpy(command, nauj_strng);
+    }
+    if (counter == 1) {
+        strcpy(ip, nauj_strng);
+    }
+    if (counter == 2) {
+        strcpy(portx, nauj_strng);
+    }
+    if (counter == 3) {
+        strcpy(login, nauj_strng);
+    }
+    if (counter == 4) {
+        strcpy(password, nauj_strng);
+    }
+
+    return 0;
+}
+
+VMINT parseText1(VMSTR text) {
+    VMCHAR vns_simbl[2] = {};
+    VMCHAR nauj_strng[100] = {};
+    VMINT counter = 0;
+    VMCHAR* ptr;
+
+    ptr = text;
+
+    while (*ptr != '\0') {
+        if (*ptr == ' ') {
+            ++counter;
+
+            if (counter == 1)
+                strcpy(text22, nauj_strng);
+            else if (counter == 2)
+                strcpy(text33, nauj_strng);
+            else if (counter == 3)
+                strcpy(text44, nauj_strng);
+
+            if (counter < 4) nauj_strng[0] = '\0';
+
+            ++ptr;
+            continue;
+        }
+
+        vns_simbl[0] = *ptr;
+        vns_simbl[1] = '\0';
+
+        if (strlen(nauj_strng) < sizeof(nauj_strng) - 1)
+            strncat(nauj_strng, vns_simbl, 1);
+
+        ++ptr;
+    }
+
+    if (counter == 0) {
+        strcpy(text22, nauj_strng);
+    }
+    if (counter == 1) {
+        strcpy(text33, nauj_strng);
+    }
+    if (counter == 2) {
+        strcpy(text44, nauj_strng);
+    }
+    if (counter > 2) {
+        strcpy(text55, nauj_strng);
+    }
+
+    return 0;
+}
+
+VMINT parseText2(VMSTR text) {
+    VMCHAR textx[220] = {};
+    VMCHAR vns_simbl[2] = {};
+    VMCHAR nauj_strng[100] = {};
+    VMINT counter = 0;
+    VMCHAR text22X[100] = {};
+    VMCHAR text33X[100] = {};
+    VMCHAR text44X[100] = {};
+    VMCHAR text44Y[100] = {};
+    VMCHAR text44Z[100] = {};
+    VMCHAR text44Q[100] = {};
+    VMCHAR text44K[100] = {};
+
+    VMCHAR* ptr;
+    VMCHAR* ptr1;
+    VMCHAR* ptr2;
+    VMCHAR* ptr3;
+
+    strcpy(textx, text);
+
+    ptr = textx;
+
+    stringReverse(textx);
+
+    while (*ptr != '\0') {
+        if (*ptr == ' ' && counter != 2) {
+            counter = counter + 1;
+
+            if (counter == 1) {
+                strcpy(text22X, nauj_strng);
+            }
+            if (counter == 2) {
+                strcpy(text33X, nauj_strng);
+            }
+            if (counter < 3) {
+                strcpy(nauj_strng, "");
+            }
+            ptr++;
+        }
+
+        vns_simbl[0] = *ptr;
+        vns_simbl[1] = '\0';
+
+        if (strlen(nauj_strng) < sizeof(nauj_strng) - 1) {
+            strncat(nauj_strng, vns_simbl, 1);
+        }
+        ptr++;
+    }
+
+    if (counter == 0) {
+        strcpy(text22X, nauj_strng);
+    }
+    if (counter == 1) {
+        strcpy(text33X, nauj_strng);
+    }
+    if (counter > 1) {
+        strcpy(text44X, nauj_strng);
+    }
+
+    if (strlen(text22X) > 0) {
+        ptr1 = text22X;
+        stringReverse(ptr1);
+        snprintf(text222, sizeof(text222), "%s", ptr1);
+    }
+
+    if (strlen(text33X) > 0) {
+        ptr2 = text33X;
+        stringReverse(ptr2);
+        sprintf(text333, "%s", ptr2);
+    }
+
+    if (strlen(text44X) > 0) {
+        trim(text44Y, text44X);
+
+        if (strlen(text44Y) != strlen(text22)) {
+            size_t lenY = strlen(text44Y);
+            size_t len22 = strlen(text22);
+            if (lenY <= len22 + 1) return -1;
+            size_t copy_len = strlen(text44Y) - (strlen(text22) + 1);  //!!!!
+            if (copy_len >= sizeof(text44Z)) copy_len = sizeof(text44Z) - 1;
+            memcpy(text44Z, text44Y, copy_len);
+            text44Z[copy_len] = '\0';
+
+            if (strlen(text44Z) > 1) {
+                ptr3 = text44Z;
+                stringReverse(ptr3);
+                sprintf(text44Q, "%s", ptr3);
+                trim_single_spec_symb(text44K, text44Q);
+            } else if (strlen(text44Z) == 1) {
+                ptr3 = text44Z;
+                sprintf(text44Q, "%s", ptr3);
+                trim_single_spec_symb(text44K, text44Q);
+            } else {
+            }
+
+            if (strlen(text44K) > 0) {
+                sprintf(text444, "%s", text44K);
+            }
+        }
+    }
+
+    return 0;
+}
+
+void timer1(int a) {
+    vm_delete_timer_ex(a);
+    vm_exit_app();
+}
+
+void trim(char* result_data, const char* input_data) {
+    while (isspace((unsigned char)*input_data)) {
+        ++input_data;
+    }
+
+    size_t len = strlen(input_data);
+
+    while (len > 0 && isspace((unsigned char)input_data[len - 1])) {
+        --len;
+    }
+
+    memcpy(result_data, input_data, len);
+    result_data[len] = '\0';
+}
+
+void create_app_txt_path1(void) {
+    VMWCHAR fullPath[100];
+    VMWCHAR wfile_extension[10];
+
+    vm_get_exec_filename(fullPath);
+    vm_get_path(fullPath, fullPath1);
+}
+
+void create_supdir_path(VMWSTR result, VMWSTR source) {
+    VMINT addrBefo = 3;
+    VMINT addrLast = 0;
+    VMINT count1 = 0;
+    VMWCHAR fullPathx2[100];
+    VMWCHAR* ptr;
+
+    if (wstrlen(source) < 4) {
+        wstrcpy(fullPathx2, source);
+        wstrcpy(result, fullPathx2);
+        return;
+    }
+
+    ptr = source;
+
+    while (*ptr != L'\0') {
+        addrBefo = addrLast;
+
+        if (*ptr == L'\\') {
+            addrLast = count1 + 1;
+        }
+
+        count1 = count1 + 1;
+
+        ptr++;
+    }
+
+    vm_wstrncpy(fullPathx2, source, addrBefo);
+    wstrcpy(result, fullPathx2);
+}
+
+void create_search_path(VMWSTR result, VMWSTR source, VMSTR text) {
+    VMWCHAR fullPathx1[100];
+    VMWCHAR wtext[100];
+
+    vm_ascii_to_ucs2(wtext, (strlen(text) + 1) * 2, text);  //"*.*"
+    vm_wstrcpy(fullPathx1, source);
+    vm_wstrcat(fullPathx1, wtext);
+    vm_wstrcpy(result, fullPathx1);
+}
+
+VMINT cb(VMINT act, VMUINT32 total, VMUINT32 completed, VMINT hdl) { return 0; }
+
+void trim_left_symbols(char* result_data, const char* input_data) {
+    strcpy(result_data, input_data);
+
+    size_t len = strlen(result_data);
+
+    while (len > 0 && result_data[len - 1] == '\\') {
+        result_data[len - 1] = '\0';
+        --len;
+    }
+}
+
+void extract_path(char* result_data, const char* input_data) {
+    strcpy(result_data, input_data);
+
+    char* last = strrchr(result_data, '\\');
+
+    if (last != nullptr) {
+        *(last + 1) = '\0';
+    } else {
+        result_data[0] = '\0';
+    }
+}
+
+void stringReverse(char* str) {
+    int len = strlen(str);
+
+    if (len > 1) {
+        // pointers to start and end
+        char* start = str;
+        char* end = str + len - 1;
+
+        while (start < end) {
+            char temp = *start;
+            *start = *end;
+            *end = temp;
+            start++;
+            end--;
+        }
+    }
+}
+
+void trim_single_spec_symb(char* result, const char* input) {
+    size_t len = strlen(input);
+
+    if (len >= 2 && input[0] == '\'' && input[len - 1] == '\'') {
+        strncpy(result, input + 1, len - 2);
+        result[len - 2] = '\0';
+    } else {
+        strcpy(result, input);
+    }
+}
+
+void cmd_help(const CommandContext& ctx) {
+    console_str_in(text4);
+    console_str_in(text5);
+//    console_str_in(text10);
+}
+
+void cmd_about(const CommandContext& ctx) { console_str_in(text3); }
+
+void cmd_cls(const CommandContext& ctx) {
+    if (strlen(ctx.arg1) != 0) {
+        console_str_in(text88);
+        return;
+    }
+
+    if (my_intx > 471) {
+        console.clean_history();
+        my_intx = 0;
+    }
+
+    console.erase_display(2);
+    console.reset();
+    rrrrrrr = 0;
+}
+
+void cmd_exit(const CommandContext& ctx) { vm_exit_app(); }
+
+void cmd_line(const CommandContext& ctx) {
+    snprintf(text, sizeof(text), "Line: %d\n\n", my_intx + plus_line);
+
+    console_str_in(text);
+}
+
+void execute_command(const ParsedCommand& cmd) {
+    CommandContext ctx = {cmd.arg1, cmd.arg2, cmd.arg3};
+
+    const size_t count = sizeof(commands) / sizeof(commands[0]);
+
+    for (size_t i = 0; i < count; ++i) {
+        if (vm_string_equals_ignore_case(cmd.cmd, commands[i].name) == 0) {
+            commands[i].handler(ctx);
+            return;
+        }
+    }
+
+    snprintf(text, sizeof(text),
+             "%s is not recognized as an internal or external command.\n\n",
+             cmd.cmd);
+
+    console_str_in(text);
+}
+
+void cmd_dir(const CommandContext& ctx) {
+    create_search_path(fullPath2, fullPath1, (char*)"*.*");
+
+    test = 0;
+    hnd = vm_find_first_ext(fullPath2, &fileInfo);
+
+    if (hnd < 0) {
+        console_str_in("Directory read error\n\n");
+        return;
+    }
+
+    do {
+        vm_ucs2_to_ascii(text6, wstrlen(fileInfo.filefullname) + 1,
+                         fileInfo.filefullname);
+
+        if (fileInfo.attributes & VM_FS_ATTR_DIR) {
+            strcpy(text, "<DIR> ");
+        } else {
+            strcpy(text, "-r--- ");
+        }
+
+        strncat(text, text6, sizeof(text) - strlen(text) - 1);
+
+        strncat(text, "\n", sizeof(text) - strlen(text) - 1);
+
+        console_str_in(text);
+
+    } while (vm_find_next_ext(hnd, &fileInfo) == 0);
+
+    vm_find_close_ext(hnd);
+
+    console_str_in("\n");
+}
+
+void cmd_cd(const CommandContext& ctx) {
+    if (strlen(ctx.arg1) == 0 ||
+        vm_string_equals_ignore_case(ctx.arg1, ".") == 0) {
+        vm_ucs2_to_ascii(text, wstrlen(fullPath1) + 1, fullPath1);
+
+        strncat(text, "\n\n", sizeof(text) - strlen(text) - 1);
+
+        console_str_in(text);
+        return;
+    }
+
+    if (vm_string_equals_ignore_case(ctx.arg1, "..") == 0) {
+        create_supdir_path(fullPath1, fullPath1);
+
+        vm_ucs2_to_ascii(text, wstrlen(fullPath1) + 1, fullPath1);
+
+        strncat(text, "\n\n", sizeof(text) - strlen(text) - 1);
+
+        console_str_in(text);
+
+        return;
+    }
+
+    trim_left_symbols(text6, ctx.arg1);
+
+    if (strlen(text6) < sizeof(text6) - 1)
+        strncat(text6, "\\", sizeof(text6) - strlen(text6) - 1);
+
+    vm_ascii_to_ucs2(fullPath3, (strlen(text6) + 1) * 2, text6);
+
+    vm_wstrcpy(fullPath2, fullPath1);
+    vm_wstrcat(fullPath2, fullPath3);
+
+    if (vm_file_get_attributes(fullPath2) == VM_FS_ATTR_DIR) {
+        wstrcpy(fullPath1, fullPath2);
+
+        vm_ucs2_to_ascii(text, wstrlen(fullPath1) + 1, fullPath1);
+    } else {
+        strcpy(text, "The system cannot find the path specified.");
+    }
+
+    strncat(text, "\n\n", sizeof(text) - strlen(text) - 1);
+
+    console_str_in(text);
+}
+
+void cmd_echo(const CommandContext& ctx) {
+    if (strlen(ctx.arg1) == 0) {
+        console_str_in("ECHO is on.\n\n");
+        return;
+    }
+
+    console_str_in(ctx.arg1);
+
+    if (strlen(ctx.arg2)) {
+        console_str_in(" ");
+        console_str_in(ctx.arg2);
+    }
+
+    if (strlen(ctx.arg3)) {
+        console_str_in(" ");
+        console_str_in(ctx.arg3);
+    }
+
+    console_str_in("\n\n");
+}
+
+ParsedCommand parse_command(const char* input) {
+    ParsedCommand out = {};
+
+    sscanf(input, "%63s %127s %127s %127[^\n]", out.cmd, out.arg1, out.arg2,
+           out.arg3);
+
+    return out;
+}
+
+void cmd_remote(const CommandContext&) {
+    remote_mode = true;
+//    socket_output = true;
+    console_str_in("Remote mode ON\n\n");
+}
+
+void cmd_local(const CommandContext&) {
+    remote_mode = false;
+//    socket_output = false;
+    console_str_in("Local mode ON\n\n");
+}
+
+void tcp_callback(int id, TCPEvent event, uint32_t val) {
+    const char* names[4] = {
+        "Connected",
+        "Disconnected",
+        "HostNotFound",
+        "Error",
+    };
+
+    cprintf("%s in\n", names[(int)event]);
+    switch (event) {
+        case TCPEvent::Connected:
+            connState = ConnectionState::Connected;
+            {
+                const char* hello = "TCP Relay\n";
+                ipts.tcp.write(tcp_id, hello, strlen(hello));
+            }
+            remote_mode = true; //-----------------------------------------------------------
+            break;
+        case TCPEvent::Disconnected:
+            remote_mode = false; //--------------------------------------------------------------------
+        case TCPEvent::HostNotFound:
+        case TCPEvent::Error:
+            connState = ConnectionState::Disconnected;
+            ipts.tcp.close(tcp_id);
+            tcp_id = ipts.tcp.init(tcp_callback);
+            ipts.tcp.laccept(id, tcp_id);
+            break;
+        default:
+            break;
+    }
+}
+
+static void watchdog_timer(VMINT tid) {
+    if (timer_id1 != -1) {
+        vm_delete_timer_ex(timer_id1);
+        timer_id1 = -1;
+        cprintf("Connecting unsuccessful !\n\n");
+
+        cprintf("Available connections:\n");
+        VMINT d;
+
+        num = vm_btcm_get_dev_num(VM_SRV_BT_CM_RECENT_USED_DEV);
+        for (d = 0; d < num; d++) {
+            cprintf("%d: ", d + 1);
+            print_bt_address(d);
+        }
+        //cprintf("Input connection # to repeat[1]: ");
+        //strcpy(t2input.str_buf, "connect 0");
+        cprintf("\n");
+    }
+}
+
+void cleanup_resources() {
+    if (layer_hdls[0] != -1) {
+        vm_graphic_delete_layer(layer_hdls[0]);
+        layer_hdls[0] = -1;
+    }
+
+    if (layer_hdls[1] != -1) {
+        vm_graphic_delete_layer(layer_hdls[1]);
+        layer_hdls[1] = -1;
+    }
+
+    if (main_timer_id != -1) {
+        vm_delete_timer(main_timer_id);
+        main_timer_id = -1;
+    }
+}
+
+void process_remote_command1(const char* input) {
+    if (connState != ConnectionState::Connected) {
+        console_str_in("Remote not connected.\n");
+        return;
+    }
+
+    ipts.tcp.write(tcp_id, input, strlen(input));
+
+    ipts.tcp.write(tcp_id, "\r\n", 2);
+}
+
+//void on_input_complete(const char* text) {
+//    char command_buffer[BUF_SIZE];
+
+//    snprintf(command_buffer, sizeof(command_buffer), "%s", text);
+
+//    trim(text11, command_buffer);
+
+//    if (remote_mode) {
+//        process_remote_command(text11);
+//    } else {
+//        process_local_command(text11);
+//    }
+
+//    t2input.free_buffer();
+//}
+
+void on_input_complete(const char* text) {
+    char command_buffer[BUF_SIZE];
+
+    snprintf(command_buffer, sizeof(command_buffer), "%s", text);
+
+    trim(text11, command_buffer);
+
+    if (strlen(text11) == 0) {
+        t2input.free_buffer();
+        return;
+    }
+
+    // Connected -> send only to server
+    if (connState == ConnectionState::Connected) {
+
+//        ipts.tcp.write(tcp_id, text11, strlen(text11)); //------------------------------------------
+//        ipts.tcp.write(tcp_id, "\r\n", 2); //-------------------------------------------------------
+
+    } else {
+
+        // Not connected -> execute locally
+        ParsedCommand cmd = parse_command(text11);
+        execute_command(cmd);
+    }
+
+    t2input.free_buffer();
+}
+
+void process_local_command(const char* input) {
+//    // cprintf("[LOCAL EXEC]%s\n", input);
+    ParsedCommand cmd = parse_command(input);
+
+    execute_command(cmd);
+}
+
+int cprintf(char const* const format, ...) {
+    va_list aptr;
+
+    va_start(aptr, format);
+    int ret = vm_vsprintf(buf, format, aptr);
+    va_end(aptr);
+
+    console_str_in(buf);
+    return ret;
+}
+
+void print_bt_address(int num) {
+    if (num < 0) {
+        return;
+    }
+
+    vm_btcm_get_dev_info_by_index(num, VM_SRV_BT_CM_RECENT_USED_DEV, &bt_info);
+
+    VMUINT8 lap0 = (VMUINT8)(bt_info.bd_addr.lap & 0xFF);
+    VMUINT8 lap1 = (VMUINT8)((bt_info.bd_addr.lap >> 8) & 0xFF);
+    VMUINT8 lap2 = (VMUINT8)((bt_info.bd_addr.lap >> 16) & 0xFF);
+    VMUINT8 uap = bt_info.bd_addr.uap;
+    VMUINT8 nap0 = (VMUINT8)(bt_info.bd_addr.nap & 0xFF);
+    VMUINT8 nap1 = (VMUINT8)((bt_info.bd_addr.nap >> 8) & 0xFF);
+
+    if (layer_hdls[0] != -1 && layer_hdls[1] != -1) {
+       cprintf("%02X:%02X:%02X:%02X:%02X:%02X %s\n", nap1, nap0, uap, lap2, lap1, lap0, bt_info.name);
+    }
+}
+
+void set_bt_address(int num_index) {
+    if (num_index < 0) {
+        return;
+    }
+
+    vm_btcm_get_dev_info_by_index(num_index, VM_SRV_BT_CM_RECENT_USED_DEV,
+                                  &bt_info);
+
+    my_mac[0] = (VMUINT8)((bt_info.bd_addr.nap >> 8) & 0xFF);   // NAP high byte
+    my_mac[1] = (VMUINT8)(bt_info.bd_addr.nap & 0xFF);          // NAP low byte
+    my_mac[2] = bt_info.bd_addr.uap;                            // UAP
+    my_mac[3] = (VMUINT8)((bt_info.bd_addr.lap >> 16) & 0xFF);  // LAP high byte
+    my_mac[4] = (VMUINT8)((bt_info.bd_addr.lap >> 8) & 0xFF);   // LAP mid byte
+    my_mac[5] = (VMUINT8)(bt_info.bd_addr.lap & 0xFF);          // LAP low byte
+}
+
+//void process_remote_command(const char* input) {
+//    // cprintf("[REMOTE EXEC]%s\n", input);
+//    //     cprintf("[SEND]%s\n", input);
+
+//    if (connState != ConnectionState::Connected) {
+//        console_str_in("Remote not connected.\n");
+//        return;
+//    }
+
+//    ipts.tcp.write(tcp_id, input, strlen(input));
+
+//    ipts.tcp.write(tcp_id, "\r\n", 2);
+//}
+
+void print_bt_address1(int num) {
+    if (num < 0) {
+        return;
+    }
+
+    vm_btcm_get_dev_info_by_index(num, VM_SRV_BT_CM_RECENT_USED_DEV, &bt_info);
+
+    VMUINT8 lap0 = (VMUINT8)(bt_info.bd_addr.lap & 0xFF);
+    VMUINT8 lap1 = (VMUINT8)((bt_info.bd_addr.lap >> 8) & 0xFF);
+    VMUINT8 lap2 = (VMUINT8)((bt_info.bd_addr.lap >> 16) & 0xFF);
+    VMUINT8 uap = bt_info.bd_addr.uap;
+    VMUINT8 nap0 = (VMUINT8)(bt_info.bd_addr.nap & 0xFF);
+    VMUINT8 nap1 = (VMUINT8)((bt_info.bd_addr.nap >> 8) & 0xFF);
+
+    sprintf(text_pcr, "Connect: %02X:%02X:%02X:%02X:%02X:%02X %s\n\n", nap1, nap0, uap, lap2, lap1, lap0, bt_info.name);
+    show_msg = true;
+    if (layer_hdls[0] != -1 && layer_hdls[1] != -1) {
+       cprintf("Connect: %02X:%02X:%02X:%02X:%02X:%02X %s\n\n", nap1, nap0, uap, lap2, lap1, lap0, bt_info.name);
+    }
+
+}
+
+void cmd_start_network(const CommandContext& ctx) {
+
+    const char* arg1 = ctx.arg1 ? ctx.arg1 : "";
+    const char* arg2 = ctx.arg2 ? ctx.arg2 : "";
+    const char* arg3 = ctx.arg3 ? ctx.arg3 : "";
+
+
+    if (connState == ConnectionState::Connected) {
+        show_msg = true;
+        sprintf(text_pcr, "%s", "Disconnect first !\n\n");
+        if (layer_hdls[0] != -1 && layer_hdls[1] != -1) {
+           cprintf("Disconnect first !\n\n");
+        }
+        return;
+    }
+
+    num = vm_btcm_get_dev_num(VM_SRV_BT_CM_RECENT_USED_DEV);
+
+    if (num <= 0) {
+        bt_empty = true;
+        show_msg = true;
+        sprintf(text_pcr, "%s", "Need initialy pair with BT host !\n\n");
+        if (layer_hdls[0] != -1 && layer_hdls[1] != -1) {
+           cprintf("Need initialy pair with BT host !\n\n");
+        }
+        return;
+
+    } else if (vm_btcm_get_power_status() == VM_SRV_BT_CM_POWER_OFF) {
+        bt_off = true;
+        show_msg = true;
+        sprintf(text_pcr, "%s", "Please turn on bluetooth !\n\n");
+        if (layer_hdls[0] != -1 && layer_hdls[1] != -1) {
+           cprintf("Please turn on bluetooth !\n\n");
+        }
+        return;
+
+    //} else if (strlen(ctx.arg1) != 0 && strlen(ctx.arg2) != 0) { // blogai: du argumentai connect "1" "2"
+    } else if (strlen(arg1) != 0 && strlen(arg2) != 0) {
+        show_msg = true;
+        sprintf(text_pcr, "%s", "Incorrect connection number !\n\n");
+        if (layer_hdls[0] != -1 && layer_hdls[1] != -1) {
+           cprintf("Incorrect connection number !\n\n");
+        }
+        return;
+
+    } else {
+        int conn_num = 1;
+
+//        if (arg1[0] != '\0') {
+//            conn_num = atoi(arg1);
+//        }
+
+if (arg1[0] != '\0') {
+
+    for (size_t i = 0; arg1[i] != '\0'; ++i) {
+        if (!isdigit((unsigned char)arg1[i])) {
+            cprintf("Incorrect connection number !\n\n");
+            return;
+        }
+    }
+
+    conn_num = atoi(arg1);
+}
+
+        if (conn_num <= 0 || conn_num > num) {
+           if (layer_hdls[0] != -1 && layer_hdls[1] != -1) {
+              cprintf("Incorrect connection number !\n\n");
+           }
+            return;
+        }
+
+if (bt_disconnect_pending) {
+//    cprintf("Please wait for disconnect\n");
+    if (layer_hdls[0] != -1 && layer_hdls[1] != -1) {
+        cprintf("Please wait for disconnect\n");
+    }
+    return;
+}
+
+        set_bt_address(conn_num - 1);
+        print_bt_address1(conn_num - 1);
+
+    }
+
+//    print_bt_address1(atoi(ctx.arg1) - 1);
+
+//    ipts.init(StreamType::BT);
+
+if (!bt_initialized) {
+    ipts.init(StreamType::BT);
+    bt_initialized = true;
+}
+
+//cprintf("BT connect requested\n"); //---------------------------------------
+if (layer_hdls[0] != -1 && layer_hdls[1] != -1) {
+    cprintf("BT connect requested\n");
+}
+
+
+//    ipts.connectBT(my_mac);
+//    timer_id1 = vm_create_timer_ex(4500, watchdog_timer);
+
+
+connState = ConnectionState::Disconnected;
+connected = false;
+connected1 = false;
+
+//tcp_id = -1;
+//tcpl_id = -1;
+
+// cleanup old sockets first
+
+if (tcp_id != -1) {
+    ipts.tcp.close(tcp_id);
+    tcp_id = -1;
+}
+
+if (tcpl_id != -1) {
+    ipts.tcp.lclose(tcpl_id);
+    tcpl_id = -1;
+}
+
+ipts.connectBT(my_mac);
+timer_id1 = vm_create_timer_ex(4500, watchdog_timer);
+
+    tcp_id = ipts.tcp.init(tcp_callback);
+
+    tcpl_id = ipts.tcp.lbind(400, [](int id, TCPLEvent event) {
+//        const char* names[3] = {
+//            "Binded",
+//            "Accepted",
+//            "Error",
+//        };
+
+        switch (event) {
+            case TCPLEvent::Binded:
+                ipts.tcp.laccept(id, tcp_id);
+                connected1 = true;  //-----------------------------------------------------
+                if (timer_id1 != -1) {
+                    vm_delete_timer_ex(timer_id1); //-------------------------------------
+                    timer_id1 = -1;
+                }
+                break;
+//            case TCPLEvent::Error:
+//                connected1 = false;
+//                show_msg = true;
+//                sprintf(text_pcr, "%s", "Binding out error !\n\n");
+//                if (layer_hdls[0] != -1 && layer_hdls[1] != -1) {
+//                   cprintf("Binding out error !\n");
+//                }
+//                return;
+
+case TCPLEvent::Error:
+
+    // Ignore if already connected
+    if (connState == ConnectionState::Connected || connected1) {
+        break;
+    }
+
+    connected1 = false;
+
+    show_msg = true;
+    sprintf(text_pcr, "%s", "Binding out error !\n\n");
+
+    if (layer_hdls[0] != -1 && layer_hdls[1] != -1) {
+        cprintf("Binding out error !\n");
+    }
+
+    break;
+
+
+            default:
+                break;
+        }
+    });
+
+//    vm_create_timer(33, [](int tid) {
+
+    if (network_timer_id == -1) {
+        network_timer_id = vm_create_timer(33, [](int tid) {
+
+if (!bt_initialized) {
+    return;
+}
+
+
+        ipts.update();
+
+        if (key_pending) {
+            key_pending = false;
+
+            t2input.handle_keyevt(pending_event, pending_keycode);
+        }
+
+//    if (!bt_initialized) {
+//        return;
+//    }
+
+//        ipts.update();
+
+        if (connState == ConnectionState::Connected) {
+            char buf[101];
+            size_t size;
+            //------------------------------------------------------------------------------
+            do {
+                size = ipts.tcp.read(tcp_id, buf, 100);
+
+                if (size > 0) {
+                    buf[size] = '\0';
+                    if (layer_hdls[0] != -1 && layer_hdls[1] != -1) {
+                       cprintf("%s", buf);
+                    }
+                }
+
+            } while (size > 0);
+        }
+
+        if (layer_hdls[0] != -1 && layer_hdls[1] != -1) {
+            vm_graphic_flush_layer(layer_hdls, 2);
+        }
+    });
+}
+}
+
+//void cmd_stop_network(const CommandContext& ctx) {
+
+//    cprintf("Stopping network...\n");
+
+//    connState = ConnectionState::Disconnected;
+//    remote_mode = false;
+//    connected = false;
+//    connected1 = false;
+
+    // stop watchdog timer
+//    if (timer_id1 != -1) {
+//        vm_delete_timer_ex(timer_id1);
+//        timer_id1 = -1;
+//    }
+
+    // stop timeout timer
+//    if (timeout_timer_id != -1) {
+//        vm_delete_timer(timeout_timer_id);
+//        timeout_timer_id = -1;
+//    }
+
+    // close tcp client
+//    if (tcp_id != -1) {
+//        ipts.tcp.close(tcp_id);
+//        tcp_id = -1;
+//    }
+
+//    // close tcp listener
+//    if (tcpl_id != -1) {
+//        ipts.tcp.lclose(tcpl_id);
+//        tcpl_id = -1;
+//    }
+
+    // stop network update timer
+//    if (network_timer_id != -1) {
+//        vm_delete_timer(network_timer_id);
+//        network_timer_id = -1;
+//    }
+
+    // shutdown BT stack + stream
+//    ipts.quit(); //---------------------------------------------------------
+
+//tcp_id = -1;
+//tcpl_id = -1;
+
+////bt_initialized = false; //-----------------------------------------------------
+//cprintf("BT disconnect requested\n"); //------------------------------------------------
+//    cprintf("Disconnected.\n\n");
+//}
+
+void cmd_stop_network(const CommandContext& ctx)
+{
+    cprintf("Stopping network...\n");
+
+    connState = ConnectionState::Disconnected;
+    remote_mode = false;
+    connected = false;
+    connected1 = false;
+
+    // stop watchdog timer
+    if (timer_id1 != -1) {
+        vm_delete_timer_ex(timer_id1);
+        timer_id1 = -1;
+    }
+
+    if (tcp_id != -1) {
+        ipts.tcp.close(tcp_id);
+        tcp_id = -1;
+    }
+
+    if (tcpl_id != -1) {
+        ipts.tcp.lclose(tcpl_id);
+        tcpl_id = -1;
+    }
+
+//bt_disconnect_pending = true;
+    ipts.disconect();   // <-- actual BT disconnect
+cprintf("BT disconnect requested\n");
+    cprintf("Disconnected.\n\n");
+}
+
+void cmd_listbt(const CommandContext& ctx) {
+
+    if (strlen(ctx.arg1) == 0) {
+        cprintf("Available connections:\n");
+        VMINT d;
+
+        num = vm_btcm_get_dev_num(VM_SRV_BT_CM_RECENT_USED_DEV);
+        for (d = 0; d < num; d++) {
+            cprintf("%d: ", d + 1);
+            print_bt_address(d);
+        } 
+        cprintf("\n");
+    } else {
+        cprintf(text88);
+    }
+
+}
+
+void cmd_export(const CommandContext& ctx) {
+
+    if (strlen(ctx.arg1) == 0) {
+        console.save_to_file("e:\\console.txt");
+        cprintf("\n");
+    } else {
+        cprintf(text88);
+    }
+
+}
