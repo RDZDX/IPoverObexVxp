@@ -37,7 +37,7 @@ More information: https://vxpatch.luxferre.top
 ## Files
 
 - [IPoverObexTest.vxp](https://rdzdx.github.io/IPoverObexVxp/IPoverObexTest.vxp)
-- [IPoverObexPC](https://rdzdx.github.io/IPoverObexVxp/IPoverObexPC)  — ARMv6 32-bit binary for Raspberry Pi Zero W running Debian Bookworm 12
+- [IPoverObexPC](https://rdzdx.github.io/IPoverObexVxp/IPoverObexPC)  ARMv6 32-bit binary for Raspberry Pi Zero W running Debian Bookworm 12
 
 ![alt text](https://rdzdx.github.io/IPoverObexVxp/picture.jpg)
 ![alt text](https://rdzdx.github.io/IPoverObexVxp/picture1.jpg)
