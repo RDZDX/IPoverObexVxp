@@ -1,51 +1,19 @@
 #pragma once
 #include <stdint.h>
-#include "PacketMaker.h"
-#include "PacketReader.h"
-#include "TCP.h"
-#include "Log.h"
-
-enum class StreamType {
-	BT,
-	TCP
-};
+#include <stddef.h>
 
 class IPtoStream {
-	friend class Log;
-	friend class TCP;
-	friend class TCPSock;
-	friend class TCPListener;
-
-	enum Types : uint8_t {
-		LOG_T,
-		TCP_T,
-		TCP_LISTENER_T,
-	};
-
-	PacketMaker writer;
-	PacketReader reader;
-
-	uint16_t type;
-	uint16_t id;
-
-	StreamType stype;
-
-	void parsePacket();
-
 public:
-	IPtoStream();
-
-	void init(StreamType type);
+	void init();
 	void connectBT(uint8_t mac[6]);
-	void connectTCP(const char *adr);
 
+	size_t write(const void* buf, size_t size);
+	size_t read(void* buf, size_t size);
+
+	bool is_connected();
 	void update();
-
-	void disconect();
+	void disconnect();
 	void quit();
-
-	TCP tcp;
-	Log log;
 };
 
 extern IPtoStream ipts;

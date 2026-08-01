@@ -23,16 +23,11 @@ extern bool remote_mode;
 
 extern IPtoStream ipts;
 
-extern int tcp_id;
-extern int tcpl_id;
-
 extern bool connected;
-extern bool connected1;
 
 //extern bool socket_output;
 
 extern ConnectionState connState;
-
 
 
 
