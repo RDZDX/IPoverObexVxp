@@ -124,11 +124,7 @@ VMINT num = 0;
 
 vm_srv_bt_cm_dev_struct bt_info;
 
-int tcp_id = -1;
-int tcpl_id = -1;
-
 bool connected = false;
-bool connected1 = false;
 bool bt_off = false;
 bool bt_empty = false;
 bool show_msg = false;
@@ -205,7 +201,6 @@ void cmd_echo(const CommandContext& ctx);
 ParsedCommand parse_command(const char* input);
 void cmd_remote(const CommandContext&);
 void cmd_local(const CommandContext&);
-void tcp_callback(int id, TCPEvent event, uint32_t val);
 static void watchdog_timer(VMINT tid);
 void cleanup_resources();
 
@@ -944,38 +939,6 @@ void cmd_local(const CommandContext&) {
     console_str_in("Local mode ON\n\n");
 }
 
-void tcp_callback(int id, TCPEvent event, uint32_t val) {
-    const char* names[4] = {
-        "Connected",
-        "Disconnected",
-        "HostNotFound",
-        "Error",
-    };
-
-    cprintf("%s in\n", names[(int)event]);
-    switch (event) {
-        case TCPEvent::Connected:
-            connState = ConnectionState::Connected;
-            {
-                const char* hello = "TCP Relay\n";
-                ipts.tcp.write(tcp_id, hello, strlen(hello));
-            }
-            remote_mode = true; //-----------------------------------------------------------
-            break;
-        case TCPEvent::Disconnected:
-            remote_mode = false; //--------------------------------------------------------------------
-        case TCPEvent::HostNotFound:
-        case TCPEvent::Error:
-            connState = ConnectionState::Disconnected;
-            ipts.tcp.close(tcp_id);
-            tcp_id = ipts.tcp.init(tcp_callback);
-            ipts.tcp.laccept(id, tcp_id);
-            break;
-        default:
-            break;
-    }
-}
-
 static void watchdog_timer(VMINT tid) {
     if (timer_id1 != -1) {
         vm_delete_timer_ex(timer_id1);
@@ -1013,17 +976,6 @@ void cleanup_resources() {
     }
 }
 
-void process_remote_command1(const char* input) {
-    if (connState != ConnectionState::Connected) {
-        console_str_in("Remote not connected.\n");
-        return;
-    }
-
-    ipts.tcp.write(tcp_id, input, strlen(input));
-
-    ipts.tcp.write(tcp_id, "\r\n", 2);
-}
-
 //void on_input_complete(const char* text) {
 //    char command_buffer[BUF_SIZE];
 
@@ -1054,10 +1006,8 @@ void on_input_complete(const char* text) {
 
     // Connected -> send only to server
     if (connState == ConnectionState::Connected) {
-
-//        ipts.tcp.write(tcp_id, text11, strlen(text11)); //------------------------------------------
-//        ipts.tcp.write(tcp_id, "\r\n", 2); //-------------------------------------------------------
-
+        ipts.write(text11, strlen(text11));
+        ipts.write("\r\n", 2);
     } else {
 
         // Not connected -> execute locally
@@ -1246,94 +1196,15 @@ if (bt_disconnect_pending) {
 //    ipts.init(StreamType::BT);
 
 if (!bt_initialized) {
-    ipts.init(StreamType::BT);
+    ipts.init();
     bt_initialized = true;
 }
 
-//cprintf("BT connect requested\n"); //---------------------------------------
-//if (layer_hdls[0] != -1 && layer_hdls[1] != -1) {
-//    cprintf("BT connect requested\n");
-//}
-
-
-//    ipts.connectBT(my_mac);
-//    timer_id1 = vm_create_timer_ex(4500, watchdog_timer);
-
-
 connState = ConnectionState::Disconnected;
 connected = false;
-connected1 = false;
-
-//tcp_id = -1;
-//tcpl_id = -1;
-
-// cleanup old sockets first
-
-if (tcp_id != -1) {
-    ipts.tcp.close(tcp_id);
-    tcp_id = -1;
-}
-
-if (tcpl_id != -1) {
-    ipts.tcp.lclose(tcpl_id);
-    tcpl_id = -1;
-}
 
 ipts.connectBT(my_mac);
 timer_id1 = vm_create_timer_ex(4500, watchdog_timer);
-
-    tcp_id = ipts.tcp.init(tcp_callback);
-
-    tcpl_id = ipts.tcp.lbind(400, [](int id, TCPLEvent event) {
-//        const char* names[3] = {
-//            "Binded",
-//            "Accepted",
-//            "Error",
-//        };
-
-        switch (event) {
-            case TCPLEvent::Binded:
-                ipts.tcp.laccept(id, tcp_id);
-                connected1 = true;  //-----------------------------------------------------
-                if (timer_id1 != -1) {
-                    vm_delete_timer_ex(timer_id1); //-------------------------------------
-                    timer_id1 = -1;
-                }
-                break;
-//            case TCPLEvent::Error:
-//                connected1 = false;
-//                show_msg = true;
-//                sprintf(text_pcr, "%s", "Binding out error !\n\n");
-//                if (layer_hdls[0] != -1 && layer_hdls[1] != -1) {
-//                   cprintf("Binding out error !\n");
-//                }
-//                return;
-
-case TCPLEvent::Error:
-
-    // Ignore if already connected
-    if (connState == ConnectionState::Connected || connected1) {
-        break;
-    }
-
-    connected1 = false;
-
-    show_msg = true;
-    sprintf(text_pcr, "%s", "Binding out error !\n\n");
-
-    if (layer_hdls[0] != -1 && layer_hdls[1] != -1) {
-        cprintf("Binding out error !\n");
-    }
-
-    break;
-
-
-            default:
-                break;
-        }
-    });
-
-//    vm_create_timer(33, [](int tid) {
 
     if (network_timer_id == -1) {
         network_timer_id = vm_create_timer(33, [](int tid) {
@@ -1342,8 +1213,21 @@ if (!bt_initialized) {
     return;
 }
 
-
         ipts.update();
+
+        // Update connection state based on BT status
+        bool bt_connected = ipts.is_connected();
+        if (bt_connected && connState != ConnectionState::Connected) {
+            connState = ConnectionState::Connected;
+            remote_mode = true;
+            if (timer_id1 != -1) {
+                vm_delete_timer_ex(timer_id1);
+                timer_id1 = -1;
+            }
+        } else if (!bt_connected && connState == ConnectionState::Connected) {
+            connState = ConnectionState::Disconnected;
+            remote_mode = false;
+        }
 
         if (key_pending) {
             key_pending = false;
@@ -1351,23 +1235,16 @@ if (!bt_initialized) {
             t2input.handle_keyevt(pending_event, pending_keycode);
         }
 
-//    if (!bt_initialized) {
-//        return;
-//    }
-
-//        ipts.update();
-
-        if (connState == ConnectionState::Connected) {
-            char buf[101];
+        {
+            char rbuf[101];
             size_t size;
-            //------------------------------------------------------------------------------
             do {
-                size = ipts.tcp.read(tcp_id, buf, 100);
+                size = ipts.read(rbuf, 100);
 
                 if (size > 0) {
-                    buf[size] = '\0';
+                    rbuf[size] = '\0';
                     if (layer_hdls[0] != -1 && layer_hdls[1] != -1) {
-                       cprintf("%s", buf);
+                       cprintf("%s", rbuf);
                     }
                 }
 
@@ -1385,60 +1262,11 @@ if (!bt_initialized) {
 
 //    cprintf("Stopping network...\n");
 
-//    connState = ConnectionState::Disconnected;
-//    remote_mode = false;
-//    connected = false;
-//    connected1 = false;
-
-    // stop watchdog timer
-//    if (timer_id1 != -1) {
-//        vm_delete_timer_ex(timer_id1);
-//        timer_id1 = -1;
-//    }
-
-    // stop timeout timer
-//    if (timeout_timer_id != -1) {
-//        vm_delete_timer(timeout_timer_id);
-//        timeout_timer_id = -1;
-//    }
-
-    // close tcp client
-//    if (tcp_id != -1) {
-//        ipts.tcp.close(tcp_id);
-//        tcp_id = -1;
-//    }
-
-//    // close tcp listener
-//    if (tcpl_id != -1) {
-//        ipts.tcp.lclose(tcpl_id);
-//        tcpl_id = -1;
-//    }
-
-    // stop network update timer
-//    if (network_timer_id != -1) {
-//        vm_delete_timer(network_timer_id);
-//        network_timer_id = -1;
-//    }
-
-    // shutdown BT stack + stream
-//    ipts.quit(); //---------------------------------------------------------
-
-//tcp_id = -1;
-//tcpl_id = -1;
-
-////bt_initialized = false; //-----------------------------------------------------
-//cprintf("BT disconnect requested\n"); //------------------------------------------------
-//    cprintf("Disconnected.\n\n");
-//}
-
 void cmd_stop_network(const CommandContext& ctx)
 {
-    cprintf("Stopping network...\n");
-
     connState = ConnectionState::Disconnected;
     remote_mode = false;
     connected = false;
-    connected1 = false;
 
     // stop watchdog timer
     if (timer_id1 != -1) {
@@ -1446,19 +1274,7 @@ void cmd_stop_network(const CommandContext& ctx)
         timer_id1 = -1;
     }
 
-    if (tcp_id != -1) {
-        ipts.tcp.close(tcp_id);
-        tcp_id = -1;
-    }
-
-    if (tcpl_id != -1) {
-        ipts.tcp.lclose(tcpl_id);
-        tcpl_id = -1;
-    }
-
-//bt_disconnect_pending = true;
-    ipts.disconect();   // <-- actual BT disconnect
-//cprintf("BT disconnect requested\n");
+    ipts.disconnect();
     cprintf("Disconnected.\n\n");
 }
 

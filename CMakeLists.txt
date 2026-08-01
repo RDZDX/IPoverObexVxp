@@ -6,7 +6,7 @@ set(APP_NAME "IPoverObexTest")
 set(DEVELOPER_NAME "Ximik_Boda")
 set(RAM "1500") #Ram requirement (3250 in kb)
 set(IMSI "1234567890" CACHE STRING "Imsi of first SIM-card")
-set(API "Audio File SIM_card Sec SysStorage SysFile ProMng BT TCP") #Api for app,
+set(API "Audio File SIM_card Sec SysStorage SysFile ProMng BT") #Api for app,
 set(APPID "-1") 
 set(CERTID "1" CACHE STRING "") 
 set(CERT "none" CACHE STRING "")
@@ -25,7 +25,6 @@ add_subdirectory(resources)
 add_subdirectory(mreapi)
 add_subdirectory(run)
 add_subdirectory(bt_opp)
-add_subdirectory(tcp)
 add_subdirectory(console)
 add_subdirectory(IPtoStream)
 
