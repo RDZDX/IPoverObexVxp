@@ -610,11 +610,17 @@ case VM_KEY_OK:
         // CONNECTED -> remote command
 //        if(socket_output && connState == ConnectionState::Connected)
 //        if(connState == ConnectionState::Connected)
-        if (remote_mode && connState == ConnectionState::Connected)
-        {
-            ipts.tcp.write(tcp_id, line_buffer, len);
-            ipts.tcp.write(tcp_id, "\r\n", 2);
-        }
+//        if (remote_mode && connState == ConnectionState::Connected)
+//        {
+//            ipts.tcp.write(tcp_id, line_buffer, len);
+//            ipts.tcp.write(tcp_id, "\r\n", 2);
+//        }
+
+ if (remote_mode && connState == ConnectionState::Connected)
+{
+    ipts.write(line_buffer, len);
+    ipts.write("\r\n", 2);
+}        
         // NOT CONNECTED -> local command
         else
         {
