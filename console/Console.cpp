@@ -160,8 +160,10 @@ void Console::erase_display(int t){
 				erase_line(2,i);
 			break;
 		case 3:
-			for(int i=0;i<=count_of_lines;++i)
-				for(int j=0;j<=terminal_h;++j)   //for(int j=0;j<=terminal_w;++j) ?????
+			// Fix: was i<=count_of_lines (off-by-one, wrote past array end)
+			//      and j<=terminal_h (wrong dimension, should be terminal_w)
+			for(int i=0; i<count_of_lines; ++i)
+				for(int j=0; j<terminal_w; ++j)
 					history_text[i][j].reset();
 		case 2:
 			for(int i=0;i<terminal_h;++i)
