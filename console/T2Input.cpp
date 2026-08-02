@@ -2,6 +2,7 @@
 #include "Console_io.h"
 #include "ProFont6x11.h"
 #include "T2Input.h"
+#include <cstdlib>
 
 int myScroll = 0;
 int myScrollx = 0;
