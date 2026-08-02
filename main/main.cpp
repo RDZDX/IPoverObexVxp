@@ -1242,9 +1242,8 @@ if (!bt_initialized) {
                 size = ipts.read(rbuf, 100);
 
                 if (size > 0) {
-                    rbuf[size] = '\0';
                     if (layer_hdls[0] != -1 && layer_hdls[1] != -1) {
-                       cprintf("%s", rbuf);
+                        console_str_with_length_in(rbuf, (int)size);
                     }
                 }
 
