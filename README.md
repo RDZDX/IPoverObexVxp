@@ -34,10 +34,9 @@ For use on Nokia mobile phones, the application must be signed using the IMSI co
 
 More information: https://vxpatch.luxferre.top
 
-## Files
+## File
 
 - [IPoverObexTest.vxp](https://rdzdx.github.io/IPoverObexVxp/IPoverObexTest.vxp)
-- [IPoverObexPC](https://rdzdx.github.io/IPoverObexVxp/IPoverObexPC)  ARMv6 32-bit binary for Raspberry Pi Zero W running Debian Bookworm 12
 
 ![alt text](https://rdzdx.github.io/IPoverObexVxp/picture.jpg)
 ![alt text](https://rdzdx.github.io/IPoverObexVxp/picture1.jpg)
