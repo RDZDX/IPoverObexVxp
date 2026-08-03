@@ -12,7 +12,7 @@ A client application that connects via Bluetooth to a server application for the
    sudo ./IPoverObexPC
    ```
 
-4. When connected, the phone application automatically switches to terminal mode.
+4. Starting application automatically connect to server.
 
 ## Local Mode
 
