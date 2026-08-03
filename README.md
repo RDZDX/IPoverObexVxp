@@ -12,17 +12,11 @@ A client application that connects via Bluetooth to a server application for the
    sudo ./IPoverObexPC
    ```
 
-4. Once the Bluetooth connection is active, open an additional server console and run:
-
-   ```bash
-   nc 127.0.0.1 400
-   ```
-
-5. When connected, the phone application automatically switches to chat mode.
+4. When connected, the phone application automatically switches to terminal mode.
 
 ## Local Mode
 
-The phone application can be switched to local mode (for console commands) by pressing:
+The phone application can be switched to local mode (for local console commands) by pressing:
 
 ```text
 * + [Swch]
