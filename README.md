@@ -12,7 +12,7 @@ A client application that connects via Bluetooth to a server application for the
    sudo ./IPoverObexPC
    ```
 
-4. Starting application automatically connect to server.
+4. Starting IPoverObexVxp application automatically connect to server (last used BT address).
 
 ## Local Mode
 
