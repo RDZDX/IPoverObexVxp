@@ -6,13 +6,7 @@ A client application that connects via Bluetooth to a server application for the
 
 1. Ensure the phone and server are paired and marked as trusted Bluetooth devices.
 2. Start the Bluetooth service on the server. https://github.com/RDZDX/IPoverObexPC
-3. Run:
-
-   ```bash
-   sudo ./IPoverObexPC
-   ```
-
-4. Starting IPoverObexVxp application automatically connect to server (last used BT address).
+3. Starting IPoverObexVxp application automatically connect to server (last used BT address).
 
 ## Local Mode
 
