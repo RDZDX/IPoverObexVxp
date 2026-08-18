@@ -29,4 +29,3 @@ More information: https://vxpatch.luxferre.top
 
 ![alt text](https://rdzdx.github.io/IPoverObexVxp/picture.jpg)
 ![alt text](https://rdzdx.github.io/IPoverObexVxp/picture1.jpg)
-![alt text](https://rdzdx.github.io/IPoverObexVxp/picture4.jpg)
