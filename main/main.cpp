@@ -184,11 +184,28 @@ bool outgoing_overflow_warned = false;
 bool remote_disconnect_message = false;
 
 static void init_local_sender_name_from_bt() {
-    VMWCHAR bt_local_name[80] = {0};
-    vm_btcm_get_local_name(bt_local_name);
+    snprintf(local_sender_name, sizeof(local_sender_name), "%s", "Device");
 
-    if (wstrlen(bt_local_name) > 0) {
-        vm_ucs2_to_ascii(local_sender_name, wstrlen(bt_local_name) + 1, bt_local_name);
+    vm_srv_bt_cm_dev_struct host_info = {};
+    if (vm_btcm_get_host_dev_info(&host_info) < 0) {
+        return;
+    }
+
+    size_t name_length = 0;
+    const size_t max_host_name_length = sizeof(host_info.name);
+    const size_t max_local_name_length = sizeof(local_sender_name) - 1;
+
+    while (name_length < max_host_name_length && host_info.name[name_length] != '\0') {
+        ++name_length;
+    }
+
+    if (name_length > max_local_name_length) {
+        name_length = max_local_name_length;
+    }
+
+    if (name_length > 0) {
+        memcpy(local_sender_name, host_info.name, name_length);
+        local_sender_name[name_length] = '\0';
     }
 }
 
