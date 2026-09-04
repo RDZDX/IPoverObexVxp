@@ -28,6 +28,7 @@ static VMINT32 obexs_id = -1;
 
 static VMINT32 opcc_mtu = 0;
 static VMINT32 opcs_mtu = 0;
+static VMBOOL reverse_connect_in_progress = FALSE;
 
 static void* obex_send_buf = 0;
 static void* send_buf = 0;
@@ -118,12 +119,36 @@ static VMINT32 get_active_conn_id() {
     return -1;
 }
 
+static void bt_addr_to_mac6(VMUINT8 out[6], const vm_srv_bt_cm_bt_addr* addr) {
+    out[0] = (VMUINT8)((addr->nap >> 8) & 0xFF);
+    out[1] = (VMUINT8)(addr->nap & 0xFF);
+    out[2] = addr->uap;
+    out[3] = (VMUINT8)((addr->lap >> 16) & 0xFF);
+    out[4] = (VMUINT8)((addr->lap >> 8) & 0xFF);
+    out[5] = (VMUINT8)(addr->lap & 0xFF);
+}
+
+static void ensure_reverse_obex_connect(const vm_srv_bt_cm_bt_addr* peer_addr) {
+    if (!peer_addr || obexc_id >= 0 || reverse_connect_in_progress) {
+        return;
+    }
+
+    VMUINT8 mac[6];
+    bt_addr_to_mac6(mac, peer_addr);
+
+    reverse_connect_in_progress = TRUE;
+    if (!bt_opp_connect(mac)) {
+        reverse_connect_in_progress = FALSE;
+    }
+}
+
 static void oppc_connect_rsp_handler(void* msg) {
 
 //DEBUG_PRINTFZ("CONNECT_RSP id=%d\n", rsp->goep_conn_id);
 //log_debug("CONNECT_RSP id=%d\n", rsp->goep_conn_id);
 
 	goep_connect_rsp_struct* rsp = (goep_connect_rsp_struct*)msg;
+    VMBOOL was_connected = is_connected;
 
 	if (rsp->rsp_code == GOEP_STATUS_SUCCESS)
 	{
@@ -140,12 +165,15 @@ static void oppc_connect_rsp_handler(void* msg) {
 
 		obexc_id = rsp->goep_conn_id;
 		is_connected = TRUE;
-		opp_connected_event = TRUE;
+        reverse_connect_in_progress = FALSE;
+		if (!was_connected)
+			opp_connected_event = TRUE;
 
 		srv_oppc_send_push_req(obexc_id, GOEP_FIRST_PKT, 0x7FFFFFFF, put_name, put_mime, 0, 0);
 	}
 	else
 	{
+        reverse_connect_in_progress = FALSE;
 #ifdef REGISTER_CONN
 		srv_bt_cm_stop_conn(rsp->req_id);
 #endif // REGISTER_CONN
@@ -226,6 +254,7 @@ static void opps_authorize_ind_hdler(void* msg) {
 
 static void opps_connect_ind_handler(void* msg) {
 	goep_connect_ind_struct* ind = (goep_connect_ind_struct*)msg;
+    VMBOOL was_connected = is_connected;
 
 //    log_debug("CONNECT_IND id=%d peer_mru=%d\n", ind->goep_conn_id, ind->peer_mru);
 
@@ -236,11 +265,13 @@ static void opps_connect_ind_handler(void* msg) {
 	//cprintf("opcs_mtu: %d\n", opcs_mtu);
 
 	is_connected = TRUE;
+    if (!was_connected)
         opp_connected_event = TRUE;
 
     wait_data_to_send = TRUE;
 
 	opps_general_rsp(GOEP_CONNECT_RES, ind->goep_conn_id, GOEP_STATUS_SUCCESS);
+    ensure_reverse_obex_connect(&ind->bd_addr);
 
 #ifdef REGISTER_CONN
 	srv_bt_cm_connect_ind(conns_id);
@@ -278,6 +309,7 @@ disconnect_complete = TRUE;
 
     obexc_id = -1;
     obexs_id = -1;
+    reverse_connect_in_progress = FALSE;
 
     send_buf_pos = 0;
     receive_buf_pos = 0;
@@ -432,9 +464,17 @@ VMBOOL bt_opp_connect(VMUINT8* mac) {
         return FALSE;
     }
 
+    if (obexc_id >= 0) {
+        reverse_connect_in_progress = FALSE;
+        return TRUE;
+    }
+
 //log_debug("bt_opp_connect old obexc_id=%d\n", obexc_id);
 
-    is_connected = FALSE;
+    if (obexs_id < 0) {
+        is_connected = FALSE;
+    }
+    reverse_connect_in_progress = TRUE;
 
 //    obexc_id = -1;
 //    obexs_id = -1;
