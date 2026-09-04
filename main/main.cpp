@@ -152,6 +152,7 @@ struct ParsedCommand {
 ConnectionState connState = ConnectionState::Disconnected;
 
 enum class ChatUiState {
+    SetName,
     StartupMenu,
     ConnectSelection,
     Listening,
@@ -159,7 +160,7 @@ enum class ChatUiState {
     ReconnectMenu
 };
 
-ChatUiState chatUiState = ChatUiState::StartupMenu;
+ChatUiState chatUiState = ChatUiState::SetName;
 int selected_peer_index = -1;
 int last_peer_index = -1;
 char active_peer_name[80] = "Peer";
@@ -332,7 +333,7 @@ void handle_sysevt(VMINT message, VMINT param) {
             if (startup == VM_FALSE) {
                 startup = VM_TRUE;
                 console_str_in("IPoverObex Bluetooth chat\n\n");
-                show_start_menu();
+                cprintf("Enter your sender name:\n\n");
             }
 
             if (main_timer_id == -1) {
@@ -1201,6 +1202,13 @@ void process_local_command(const char* input) {
         return;
     }
 
+    if (chatUiState == ChatUiState::SetName) {
+        snprintf(local_sender_name, sizeof(local_sender_name), "%s", text_line);
+        cprintf("Sender set to: %s\n\n", local_sender_name);
+        show_start_menu();
+        return;
+    }
+
     if (chatUiState == ChatUiState::Chat || chatUiState == ChatUiState::Listening) {
         handle_chat_line(text_line);
         return;
@@ -1249,7 +1257,6 @@ void process_local_command(const char* input) {
         vm_btcm_get_dev_info_by_index(selected_peer_index, VM_SRV_BT_CM_RECENT_USED_DEV, &bt_info);
         snprintf(active_peer_name, sizeof(active_peer_name), "%s", bt_info.name);
         snprintf(last_peer_name, sizeof(last_peer_name), "%s", bt_info.name);
-        snprintf(local_sender_name, sizeof(local_sender_name), "%s", "Me");
 
         char index_text[12];
         snprintf(index_text, sizeof(index_text), "%d", choice);

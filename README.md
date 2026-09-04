@@ -6,10 +6,11 @@ A symmetric Bluetooth peer-to-peer chat application for MRE phones (including No
 
 1. Pair both phones over Bluetooth.
 2. Launch IPoverObexVxp on both phones.
-3. On startup choose:
+3. Enter a sender name for that phone (for example its Bluetooth device name).
+4. On startup choose:
    - **Listen** to wait for incoming peer connection, or
    - **Connect** to pick a paired device and connect.
-4. Type message text and press OK to send.
+5. Type message text and press OK to send.
 
 ## Nokia Phone Signing
 
