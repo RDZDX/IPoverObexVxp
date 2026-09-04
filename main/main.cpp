@@ -11,6 +11,7 @@
 
 #include <array>
 #include <cctype>
+#include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -150,6 +151,23 @@ struct ParsedCommand {
 
 ConnectionState connState = ConnectionState::Disconnected;
 
+enum class ChatUiState {
+    StartupMenu,
+    ConnectSelection,
+    Listening,
+    Chat,
+    ReconnectMenu
+};
+
+ChatUiState chatUiState = ChatUiState::StartupMenu;
+int selected_peer_index = -1;
+int last_peer_index = -1;
+char active_peer_name[80] = "Peer";
+char last_peer_name[80] = "";
+char local_sender_name[80] = "Me";
+char incoming_line_buffer[512] = {};
+size_t incoming_line_length = 0;
+
 //enum {
 //    OPP_STATE_IDLE,
 //    OPP_STATE_CONNECTING,
@@ -217,6 +235,14 @@ void process_local_command(const char*);
 void print_bt_address(int num);
 void set_bt_address(int num_index);
 void print_bt_address1(int num);
+void show_start_menu();
+void show_connect_menu();
+void show_reconnect_menu();
+void handle_chat_line(const char* input);
+void flush_incoming_line();
+void consume_incoming_bytes(const char* data, size_t size);
+bool ensure_bt_ready();
+void start_network_loop();
 void cmd_start_network(const CommandContext& ctx);
 void cmd_stop_network(const CommandContext& ctx);
 void cmd_listbt(const CommandContext& ctx);
@@ -250,26 +276,6 @@ void vm_main(void) {
     vm_reg_keyboard_callback(handle_keyevt);
     checkFileExist();
     create_app_txt_path1();
-
-    num = vm_btcm_get_dev_num(VM_SRV_BT_CM_RECENT_USED_DEV);
-
-    if (num <= 0) {
-        bt_empty = true;
-        show_msg = true;
-        sprintf(text_pcr, "%s", "Need initialy pair with BT host !\n\n");
-        return;
-
-    } else if (vm_btcm_get_power_status() == VM_SRV_BT_CM_POWER_OFF) {
-        bt_off = true;
-        show_msg = true;
-        sprintf(text_pcr, "%s", "Please turn on bluetooth !\n\n");
-        return;
-
-    } else {
-        set_bt_address(0);
-    }
-
-    cmd_start_network(CommandContext{ "1", "", "" });
 }
 
 void draw() {
@@ -323,30 +329,10 @@ void handle_sysevt(VMINT message, VMINT param) {
 
             t2input.input_mode = 1;  // Get input from keyboard to buffer
 
-            if (flightMode == VM_TRUE) {
-                console_str_in("Turn off flight mode !\n");
-                vm_create_timer_ex(3000, timer1);
-
-            } else if (missingConfigFile == VM_TRUE) {
-                console_str_in(text3);
-
-                if (show_msg == true) {
-                    show_msg = false;
-                    console_str_in(text_pcr);
-                }
-
-            } else if (missingConfigFile == VM_FALSE) {
-                strcpy(t2input.str_buf, command);
-                t2input.send_c("\r\n");
-
-            } else {
-                console_str_in("Opening: ");
-                console_str_in(ip);
-                console_str_in(":");
-                console_str_in(port1);
-                if (timeout_timer_id == -1) {
-                    timeout_timer_id = vm_create_timer(1000, timeout_f);
-                }
+            if (startup == VM_FALSE) {
+                startup = VM_TRUE;
+                console_str_in("IPoverObex Bluetooth chat\n\n");
+                show_start_menu();
             }
 
             if (main_timer_id == -1) {
@@ -960,17 +946,7 @@ static void watchdog_timer(VMINT tid)
 
     t2input.free_buffer();
 
-    cprintf("Available connections:\n");
-
-    num = vm_btcm_get_dev_num(VM_SRV_BT_CM_RECENT_USED_DEV);
-
-    for (VMINT d = 0; d < num; d++)
-    {
-        cprintf("%d: ", d + 1);
-        print_bt_address(d);
-    }
-
-    cprintf("\n");
+    show_start_menu();
 }
 
 void cleanup_resources() {
@@ -990,12 +966,6 @@ void cleanup_resources() {
     }
 }
 
-void process_local_command(const char* input) {
-
-    ParsedCommand cmd = parse_command(input);
-    execute_command(cmd);
-}
-
 int cprintf(char const* const format, ...) {
     va_list aptr;
 
@@ -1005,6 +975,316 @@ int cprintf(char const* const format, ...) {
 
     console_str_in(buf);
     return ret;
+}
+
+bool ensure_bt_ready() {
+    if (vm_btcm_get_power_status() == VM_SRV_BT_CM_POWER_OFF) {
+        cprintf("Please turn on bluetooth first.\n\n");
+        return false;
+    }
+
+    if (!bt_initialized) {
+        ipts.init();
+        bt_initialized = true;
+    }
+
+    start_network_loop();
+
+    return true;
+}
+
+void show_start_menu() {
+    cprintf("Select mode:\n");
+    cprintf("1. Listen\n");
+    cprintf("2. Connect\n\n");
+    chatUiState = ChatUiState::StartupMenu;
+}
+
+void show_connect_menu() {
+    num = vm_btcm_get_dev_num(VM_SRV_BT_CM_RECENT_USED_DEV);
+    if (num <= 0) {
+        cprintf("No paired devices found.\n\n");
+        show_start_menu();
+        return;
+    }
+
+    cprintf("Select paired device number:\n");
+    for (VMINT d = 0; d < num; d++) {
+        cprintf("%d: ", d + 1);
+        print_bt_address(d);
+    }
+    cprintf("\n");
+    chatUiState = ChatUiState::ConnectSelection;
+}
+
+void show_reconnect_menu() {
+    cprintf("\nConnection closed.\n");
+    if (last_peer_index >= 0) {
+        cprintf("Last peer: %s\n", last_peer_name[0] ? last_peer_name : "Peer");
+        cprintf("1. Reconnect\n");
+    } else {
+        cprintf("1. Listen\n");
+    }
+    cprintf("2. New connection\n\n");
+    chatUiState = ChatUiState::ReconnectMenu;
+}
+
+void flush_incoming_line() {
+    incoming_line_buffer[incoming_line_length] = '\0';
+
+    if (incoming_line_length == 0) {
+        return;
+    }
+
+    const char* message = incoming_line_buffer;
+    char sender[80] = "Peer";
+    const char* separator = strstr(incoming_line_buffer, "]:");
+
+    if (incoming_line_buffer[0] == '[' && separator != nullptr &&
+        separator > incoming_line_buffer + 1) {
+        size_t sender_len = (size_t)(separator - incoming_line_buffer - 1);
+        if (sender_len >= sizeof(sender)) {
+            sender_len = sizeof(sender) - 1;
+        }
+        memcpy(sender, incoming_line_buffer + 1, sender_len);
+        sender[sender_len] = '\0';
+
+        message = separator + 2;
+        if (*message == ' ') {
+            ++message;
+        }
+    } else if (active_peer_name[0] != '\0') {
+        snprintf(sender, sizeof(sender), "%s", active_peer_name);
+    }
+
+    char display[640];
+    snprintf(display, sizeof(display), "[%s]: %s\n", sender, message);
+    console_str_in(display);
+}
+
+void consume_incoming_bytes(const char* data, size_t size) {
+    for (size_t i = 0; i < size; ++i) {
+        char c = data[i];
+
+        if (c == '\r') {
+            continue;
+        }
+
+        if (c == '\n') {
+            flush_incoming_line();
+            incoming_line_length = 0;
+            continue;
+        }
+
+        if (incoming_line_length + 1 < sizeof(incoming_line_buffer)) {
+            incoming_line_buffer[incoming_line_length++] = c;
+        }
+    }
+}
+
+void handle_chat_line(const char* input) {
+    if (!input || !*input) {
+        return;
+    }
+
+    if (connState != ConnectionState::Connected) {
+        cprintf("Not connected.\n\n");
+        return;
+    }
+
+    char payload[640];
+    snprintf(payload, sizeof(payload), "[%s]: %s\n", local_sender_name, input);
+    ipts.write(payload, strlen(payload));
+
+    char display[640];
+    snprintf(display, sizeof(display), "[%s]: %s\n", local_sender_name, input);
+    console_str_in(display);
+}
+
+void start_network_loop() {
+    if (network_timer_id != -1) {
+        return;
+    }
+
+    network_timer_id = vm_create_timer(33, [](int tid) {
+        if (!bt_initialized) {
+            return;
+        }
+
+        ipts.update();
+        thread_next();
+
+        if (opp_connected_event) {
+            opp_connected_event = FALSE;
+
+            if (timer_id1 != -1) {
+                vm_delete_timer_ex(timer_id1);
+                timer_id1 = -1;
+            }
+
+            connected = true;
+            connState = ConnectionState::Connected;
+            remote_mode = true;
+            chatUiState = ChatUiState::Chat;
+
+            if (selected_peer_index < 0) {
+                const VMCHAR* peer_from_stack = bt_opp_get_last_peer_name();
+                if (peer_from_stack && peer_from_stack[0] != '\0') {
+                    snprintf(active_peer_name, sizeof(active_peer_name), "%s", peer_from_stack);
+                    snprintf(last_peer_name, sizeof(last_peer_name), "%s", peer_from_stack);
+                }
+            }
+
+            cprintf("Connected with %s.\n", active_peer_name);
+        }
+
+        if (opp_disconnected_event) {
+            opp_disconnected_event = FALSE;
+
+            connected = false;
+            connState = ConnectionState::Disconnected;
+            remote_mode = false;
+            selected_peer_index = -1;
+            incoming_line_length = 0;
+
+            t2input.free_buffer();
+
+            if (remote_disconnect_message) {
+                remote_disconnect_message = false;
+            } else {
+                cprintf("Disconnected from %s.\n", active_peer_name);
+            }
+
+            show_reconnect_menu();
+        }
+
+        if (key_pending) {
+            key_pending = false;
+            t2input.handle_keyevt(pending_event, pending_keycode);
+        }
+
+        char rbuf[101];
+        size_t size;
+        do {
+            size = ipts.read(rbuf, 100);
+            if (size > 0) {
+                consume_incoming_bytes(rbuf, size);
+            }
+        } while (size > 0);
+
+        if (layer_hdls[0] != -1 && layer_hdls[1] != -1) {
+            vm_graphic_flush_layer(layer_hdls, 2);
+        }
+    });
+}
+
+void process_local_command(const char* input) {
+    if (input == nullptr) {
+        return;
+    }
+
+    char line[256];
+    snprintf(line, sizeof(line), "%s", input);
+
+    size_t start = 0;
+    while (line[start] != '\0' && isspace((unsigned char)line[start])) {
+        ++start;
+    }
+    size_t end = strlen(line);
+    while (end > start && isspace((unsigned char)line[end - 1])) {
+        --end;
+    }
+    line[end] = '\0';
+
+    const char* text_line = line + start;
+    if (*text_line == '\0') {
+        return;
+    }
+
+    if (chatUiState == ChatUiState::Chat || chatUiState == ChatUiState::Listening) {
+        handle_chat_line(text_line);
+        return;
+    }
+
+    if (chatUiState == ChatUiState::StartupMenu) {
+        if (strcmp(text_line, "1") == 0) {
+            if (!ensure_bt_ready()) {
+                return;
+            }
+            cprintf("Listening for peer connection...\n\n");
+            chatUiState = ChatUiState::Listening;
+            return;
+        }
+
+        if (strcmp(text_line, "2") == 0) {
+            if (!ensure_bt_ready()) {
+                return;
+            }
+            show_connect_menu();
+            return;
+        }
+
+        cprintf("Unknown option.\n\n");
+        show_start_menu();
+        return;
+    }
+
+    if (chatUiState == ChatUiState::ConnectSelection) {
+        for (size_t i = 0; text_line[i] != '\0'; ++i) {
+            if (!isdigit((unsigned char)text_line[i])) {
+                cprintf("Enter a device number.\n\n");
+                return;
+            }
+        }
+
+        int choice = atoi(text_line);
+        if (choice <= 0 || choice > num) {
+            cprintf("Invalid device number.\n\n");
+            return;
+        }
+
+        selected_peer_index = choice - 1;
+        last_peer_index = selected_peer_index;
+
+        vm_btcm_get_dev_info_by_index(selected_peer_index, VM_SRV_BT_CM_RECENT_USED_DEV, &bt_info);
+        snprintf(active_peer_name, sizeof(active_peer_name), "%s", bt_info.name);
+        snprintf(last_peer_name, sizeof(last_peer_name), "%s", bt_info.name);
+        snprintf(local_sender_name, sizeof(local_sender_name), "%s", "Me");
+
+        char index_text[12];
+        snprintf(index_text, sizeof(index_text), "%d", choice);
+        chatUiState = ChatUiState::Listening;
+        cmd_start_network(CommandContext{index_text, "", ""});
+        return;
+    }
+
+    if (chatUiState == ChatUiState::ReconnectMenu) {
+        if (strcmp(text_line, "1") == 0) {
+            if (!ensure_bt_ready()) {
+                return;
+            }
+
+            if (last_peer_index >= 0) {
+                char index_text[12];
+                snprintf(index_text, sizeof(index_text), "%d", last_peer_index + 1);
+                chatUiState = ChatUiState::Listening;
+                cmd_start_network(CommandContext{index_text, "", ""});
+                return;
+            }
+
+            cprintf("Listening for peer connection...\n\n");
+            chatUiState = ChatUiState::Listening;
+            return;
+        }
+
+        if (strcmp(text_line, "2") == 0) {
+            show_start_menu();
+            return;
+        }
+
+        cprintf("Unknown option.\n\n");
+        show_reconnect_menu();
+    }
 }
 
 void print_bt_address(int num) {
@@ -1168,182 +1448,7 @@ if (timer_id1 == -1)
 //thread_create(2048, connect_wait_thread);
 //timer_id1 = vm_create_timer_ex(5000, watchdog_timer);
 
-    if (network_timer_id == -1) {
-        network_timer_id = vm_create_timer(33, [](int tid) {
-
-if (!bt_initialized) {
-    return;
-}
-
-
-        ipts.update();
-
-        thread_next();
-
-        // Update connection state based on BT status
-//        bool bt_connected = ipts.is_connected();
-
-//char dbg[64];
-//sprintf(dbg,"bt=%d state=%d remote=%d\n", bt_connected, (int)connState, remote_mode);
-//console_str_out(dbg);
-
-//if (connected != bt_connected)
-//{
-//    connected = bt_connected;
-
-//    if (connected)
-//    {
-//        connState = ConnectionState::Connected;
-//        remote_mode = true;
-
-//            if (timer_id1 != -1) {
-//                vm_delete_timer_ex(timer_id1);
-//                timer_id1 = -1;
-//            }
-
-//    }
-//    else
-//    {
-//        connState = ConnectionState::Disconnected;
-//        remote_mode = false;
-//    }
-//}
-
-
-
-
-if (opp_connected_event)
-{
-    opp_connected_event = FALSE;
-
-    if (timer_id1 != -1)
-    {
-        vm_delete_timer_ex(timer_id1);
-        timer_id1 = -1;
-    }
-
-    connected = true;
-    connState = ConnectionState::Connected;
-    remote_mode = true;
-
-//if (timer_id1 != -1)
-//{
-//    vm_delete_timer_ex(timer_id1);
-//    timer_id1 = -1;
-//}
-
-    cprintf("Connected.\n");
-}
-
-//if (opp_disconnected_event)
-//{
-//    opp_disconnected_event = FALSE;
-
-//    connected = false;
-//    connState = ConnectionState::Disconnected;
-//    remote_mode = false;
-
-////    cprintf("Disconnected.\n");
-//}
-
-
-if (opp_disconnected_event)
-{
-    opp_disconnected_event = FALSE;
-
-    connected = false;
-    connState = ConnectionState::Disconnected;
-    remote_mode = false;
-
-    t2input.free_buffer();
-
-//    cprintf("Disconnected.\n");
-
-if (remote_disconnect_message)
-{
-    remote_disconnect_message = false;
-}
-else
-{
-    cprintf("Disconnected.\n");
-}
-
-}
-
-
-//        if (bt_connected && connState != ConnectionState::Connected) {
-//            connState = ConnectionState::Connected;
-//            remote_mode = true;
-//            if (timer_id1 != -1) {
-//                vm_delete_timer_ex(timer_id1);
-//                timer_id1 = -1;
-//            }
-//        } else if (!bt_connected && connState == ConnectionState::Connected) {
-//            connState = ConnectionState::Disconnected;
-//            remote_mode = false;
-//        }
-
-        if (key_pending) {
-            key_pending = false;
-
-            t2input.handle_keyevt(pending_event, pending_keycode);
-        }
-
-        {
-            char rbuf[101];
-            size_t size;
-            do {
-                size = ipts.read(rbuf, 100);
-
-                if (size > 0) {
-
-                    rbuf[size] = '\0';
-
-if (strstr(rbuf, "logout") != nullptr ||
-    strstr(rbuf, "Connection closed") != nullptr)
-{
-    if (layer_hdls[0] != -1 && layer_hdls[1] != -1) {
-        console_str_with_length_in(rbuf, (int)size);
-    }
-
-//    connState = ConnectionState::Disconnected;
-//    remote_mode = false;
-//    connected = false;
-
-if (timer_id1 != -1) {
-    vm_delete_timer_ex(timer_id1);
-    timer_id1 = -1;
-}
-
-    key_pending = false;
-    t2input.free_buffer();
-
-//cprintf("before disconnect bt=%d\n", ipts.is_connected());
-remote_disconnect_message = true;
-    ipts.disconnect();
-//cprintf("after disconnect bt=%d\n", ipts.is_connected());
-
-//    cprintf("\nDisconnected by remote host.\n\n");
-
-//cprintf("after logout bt=%d\n", ipts.is_connected());
-
-    continue;
-}
-
-if (layer_hdls[0] != -1 && layer_hdls[1] != -1) {
-    console_str_with_length_in(rbuf, (int)size);
-}
-
-                }
-
-            } while (size > 0);
-        }
-
-        if (layer_hdls[0] != -1 && layer_hdls[1] != -1) {
-            vm_graphic_flush_layer(layer_hdls, 2);
-        }
-    });
-}
+    start_network_loop();
 }
 
 
@@ -1526,4 +1631,3 @@ void create_root_full_path_name(VMWSTR result, const VMCHAR* extt)
 
 //    thread_end();
 //}
-

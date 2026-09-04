@@ -40,6 +40,7 @@ static VMBOOL wait_data_to_send = 0;
 static VMBOOL wait_space_to_receive = 0;
 
 static VMBOOL is_connected = 0;
+static VMCHAR last_peer_name[80] = "Peer";
 
 static char buf[1024];
 
@@ -201,6 +202,8 @@ static void opps_authorize_ind_hdler(void* msg) {
 	goep_authorize_ind_struct* ind = (goep_authorize_ind_struct*)msg;
 
 	obexs_id = ind->goep_conn_id;
+    strncpy(last_peer_name, (const char*)ind->dev_name, sizeof(last_peer_name) - 1);
+    last_peer_name[sizeof(last_peer_name) - 1] = '\0';
 
 #ifdef REGISTER_CONN
 	conns_id = srv_bt_cm_start_conn(TRUE, 0x1105, &(ind->bd_addr), (VMINT8*)ind->dev_name);
@@ -215,6 +218,8 @@ static void opps_connect_ind_handler(void* msg) {
 //    log_debug("CONNECT_IND id=%d peer_mru=%d\n", ind->goep_conn_id, ind->peer_mru);
 
 	opcs_mtu = ind->peer_mru;
+    strncpy(last_peer_name, (const char*)ind->dev_name, sizeof(last_peer_name) - 1);
+    last_peer_name[sizeof(last_peer_name) - 1] = '\0';
 
 	//cprintf("opcs_mtu: %d\n", opcs_mtu);
 
@@ -582,6 +587,10 @@ VMUINT32 bt_opp_get_receive_size() {
 	return receive_buf_pos;
 }
 
+const VMCHAR* bt_opp_get_last_peer_name() {
+    return last_peer_name;
+}
+
 //static char buf[1024];
 
 static int debug_printf(const char *format, ...)
@@ -649,4 +658,3 @@ static int debug_printf(const char *format, ...)
 
 //    vm_file_close(f);
 //}
-

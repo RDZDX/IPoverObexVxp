@@ -1,21 +1,15 @@
-# IPoverObexVxp BT terminal client
+# IPoverObexVxp Bluetooth P2P chat
 
-A client application that connects via Bluetooth protocol to a server application for the MRE platform on mobile phones, including Nokia S30+ devices.
+A symmetric Bluetooth peer-to-peer chat application for MRE phones (including Nokia S30+). Both phones run the same binary.
 
 ## Usage
 
-1. Ensure the phone and server are paired and marked as trusted Bluetooth devices.
-2. Start the Bluetooth service on the server.
-3. Start the IPoverObexPC service on the server. https://github.com/RDZDX/IPoverObexPC
-4. Launch IPoverObexVxp application, it automatically connect to server (last used BT address).
-
-## Local Mode
-
-The phone application can be switched to local mode (for local console commands) by pressing:
-
-```text
-* + [Swch]
-```
+1. Pair both phones over Bluetooth.
+2. Launch IPoverObexVxp on both phones.
+3. On startup choose:
+   - **Listen** to wait for incoming peer connection, or
+   - **Connect** to pick a paired device and connect.
+4. Type message text and press OK to send.
 
 ## Nokia Phone Signing
 

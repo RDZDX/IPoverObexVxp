@@ -23,6 +23,7 @@ void	 bt_opp_set_as_readed(VMUINT32 size); // For now only one stream
 void*	 bt_opp_get_receive_buf();
 VMUINT32 bt_opp_get_receive_size();
 void bt_opp_flush();
+const VMCHAR* bt_opp_get_last_peer_name();
 
 
 
