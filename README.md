@@ -6,8 +6,8 @@ A symmetric Bluetooth peer-to-peer chat application for MRE phones (including No
 
 1. Pair both phones over Bluetooth.
 2. Launch IPoverObexVxp on both phones.
-3. Enter a sender name for that phone (for example its Bluetooth device name).
-4. On startup choose:
+3. On startup the app uses that phone's Bluetooth device name from system settings as the chat sender name.
+4. Choose:
    - **Listen** to wait for incoming peer connection, or
    - **Connect** to pick a paired device and connect.
 5. Type message text and press OK to send.
