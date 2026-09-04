@@ -17,10 +17,3 @@ A symmetric Bluetooth peer-to-peer chat application for MRE phones (including No
 For use on Nokia mobile phones, the application must be signed using the IMSI code of your SIM card.
 
 More information: https://vxpatch.luxferre.top
-
-## File
-
-- [IPoverObexTest.vxp](https://rdzdx.github.io/IPoverObexVxp/IPoverObexTest.vxp)
-
-![alt text](https://rdzdx.github.io/IPoverObexVxp/picture.jpg)
-![alt text](https://rdzdx.github.io/IPoverObexVxp/picture1.jpg)
