@@ -1,6 +1,6 @@
 # IPoverObexVxp BT terminal client
 
-A client application that connects via Bluetooth protocol to a server application for the MRE platform on mobile phones, including Nokia S30+ devices.
+A client application designed to connect via Bluetooth to a server application on MRE platform mobile phones, including Nokia S30+ devices.
 
 ## Usage
 
