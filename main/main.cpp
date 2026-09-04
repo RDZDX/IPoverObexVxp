@@ -160,7 +160,7 @@ enum class ChatUiState {
     ReconnectMenu
 };
 
-ChatUiState chatUiState = ChatUiState::SetName;
+ChatUiState chatUiState = ChatUiState::StartupMenu;
 int selected_peer_index = -1;
 int last_peer_index = -1;
 char active_peer_name[80] = "Peer";
@@ -182,6 +182,15 @@ bool outgoing_overflow_warned = false;
 //volatile int opp_state;
 
 bool remote_disconnect_message = false;
+
+static void init_local_sender_name_from_bt() {
+    VMWCHAR bt_local_name[80] = {0};
+    vm_btcm_get_local_name(bt_local_name);
+
+    if (wstrlen(bt_local_name) > 0) {
+        vm_ucs2_to_ascii(local_sender_name, wstrlen(bt_local_name) + 1, bt_local_name);
+    }
+}
 
 #ifndef WIN32
 extern "C" void _sbrk() {}
@@ -338,7 +347,9 @@ void handle_sysevt(VMINT message, VMINT param) {
             if (startup == VM_FALSE) {
                 startup = VM_TRUE;
                 console_str_in("IPoverObex Bluetooth chat\n\n");
-                cprintf("Enter your sender name:\n\n");
+                init_local_sender_name_from_bt();
+                cprintf("Using device name: %s\n\n", local_sender_name);
+                show_start_menu();
             }
 
             if (main_timer_id == -1) {
