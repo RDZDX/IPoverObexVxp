@@ -434,19 +434,7 @@ void T2Input::numpad_input(int keycode) {  // remake this
                     state = MAIN;
                     break;
                 case 9:  // REMOTE INPUT / LOCAL INPUT
-//                    if (remote_mode) {
-//                        console_str_out("\r\n[REMOTE INPUT]\r\n");
-//                    } else {
-//                        console_str_out("\r\n[LOCAL INPUT]\r\n");
-//                    }
-
-                    if (remote_mode) {
-                        remote_mode = false;
-                        console_str_out("\r\n[LOCAL INPUT]\r\n\r\n");
-                    } else {
-                        remote_mode = true;
-                      console_str_out("\r\n[REMOTE INPUT]\r\n\r\n");
-                    }
+                    console_str_out("\r\n[Chat mode]\r\n\r\n");
                     state = MAIN;
                     break;
             }
@@ -551,49 +539,13 @@ case VM_KEY_OK:
 {
     int len = strlen(line_buffer);
 
-//    char textgg[100];
-//    sprintf(textgg, "\nremote=%d state=%d len=%d\n", remote_mode, (int)connState, len);
-//    console_str_out(textgg);
-//    cprintf("remote=%d state=%d len=%d\n", remote_mode, (int)connState, len);
-
-    // newline locally
     console_char_in('\r');
     console_char_in('\n');
 
-//    if (remote_mode && connState == ConnectionState::Connected)
-
-
-char dbg[128];
-
-sprintf(
-    dbg,
-    "\r\nconnected=%d state=%d len=%d\r\n",
-    connected,
-    (int)connState,
-    len
-);
-
-console_str_in(dbg);
-
-if (connected)
-
-    {
-        if (len > 0)
-        {
-            ipts.write(line_buffer, len);
-        }
-
-        ipts.write("\r\n", 2);
-    }
-    else
-    {
-        if (len > 0)
-        {
-            process_local_command(line_buffer);
-        }
+    if (len > 0) {
+        process_local_command(line_buffer);
     }
 
-    // clear buffer
     line_length = 0;
     line_buffer[0] = '\0';
 
