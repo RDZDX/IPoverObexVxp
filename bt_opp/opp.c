@@ -109,6 +109,15 @@ static void print_hex(const char* s, unsigned char* h, int l) {
 
 static VMUINT16 put_name[128];
 static VMSTR put_mime[80] = { 0 };
+
+static VMINT32 get_active_conn_id() {
+    if (obexc_id >= 0)
+        return obexc_id;
+    if (obexs_id >= 0)
+        return obexs_id;
+    return -1;
+}
+
 static void oppc_connect_rsp_handler(void* msg) {
 
 //DEBUG_PRINTFZ("CONNECT_RSP id=%d\n", rsp->goep_conn_id);
@@ -130,6 +139,8 @@ static void oppc_connect_rsp_handler(void* msg) {
 #endif // REGISTER_CONN
 
 		obexc_id = rsp->goep_conn_id;
+		is_connected = TRUE;
+		opp_connected_event = TRUE;
 
 		srv_oppc_send_push_req(obexc_id, GOEP_FIRST_PKT, 0x7FFFFFFF, put_name, put_mime, 0, 0);
 	}
@@ -144,8 +155,9 @@ static void oppc_connect_rsp_handler(void* msg) {
 }
 
 static void send_from_buf() {
+	VMINT32 conn_id = get_active_conn_id();
 
-    if (obexc_id < 0)
+    if (conn_id < 0)
     {
 //        log_debug("send_from_buf aborted obexc_id=%d\n", obexc_id);
         return;
@@ -166,7 +178,7 @@ static void send_from_buf() {
         memmove(send_buf, (char*)send_buf + size, send_buf_pos - size);
 	send_buf_pos -= size;
 
-	srv_oppc_send_push_req(obexc_id, GOEP_NORMAL_PKT, 0x7FFFFFFF, 0, put_name, obex_send_buf, size);
+	srv_oppc_send_push_req(conn_id, GOEP_NORMAL_PKT, 0x7FFFFFFF, 0, put_name, obex_send_buf, size);
 
 	wait_data_to_send = FALSE;
 }
@@ -505,7 +517,7 @@ VMBOOL bt_opp_deinit() {
 
 VMBOOL bt_opp_is_connected() {
 //	return is_connected;
-    return (is_connected && obexc_id >= 0);
+    return (is_connected && (obexc_id >= 0 || obexs_id >= 0));
 }
 
 void bt_opp_flush() {
