@@ -168,6 +168,9 @@ char last_peer_name[80] = "";
 char local_sender_name[80] = "Me";
 char incoming_line_buffer[512] = {};
 size_t incoming_line_length = 0;
+char outgoing_message_buffer[2048] = {};
+size_t outgoing_message_length = 0;
+bool outgoing_overflow_warned = false;
 
 //enum {
 //    OPP_STATE_IDLE,
@@ -242,6 +245,8 @@ void show_reconnect_menu();
 void handle_chat_line(const char* input);
 void flush_incoming_line();
 void consume_incoming_bytes(const char* data, size_t size);
+bool enqueue_outgoing_message(const char* data, size_t size);
+void flush_outgoing_messages();
 bool ensure_bt_ready();
 void start_network_loop();
 void cmd_start_network(const CommandContext& ctx);
@@ -944,6 +949,7 @@ static void watchdog_timer(VMINT tid)
     connected = false;
     remote_mode = false;
     connState = ConnectionState::Disconnected;
+    outgoing_message_length = 0;
 
     t2input.free_buffer();
 
@@ -1083,6 +1089,72 @@ void consume_incoming_bytes(const char* data, size_t size) {
     }
 }
 
+bool enqueue_outgoing_message(const char* data, size_t size) {
+    if (data == nullptr || size == 0) {
+        return true;
+    }
+
+    const size_t capacity = sizeof(outgoing_message_buffer);
+
+    if (size >= capacity) {
+        data += size - (capacity - 1);
+        size = capacity - 1;
+        outgoing_message_length = 0;
+    }
+
+    bool dropped = false;
+    while (outgoing_message_length + size >= capacity) {
+        if (outgoing_message_length == 0) {
+            break;
+        }
+
+        const void* newline = memchr(outgoing_message_buffer, '\n', outgoing_message_length);
+        size_t drop = newline ? (size_t)((const char*)newline - outgoing_message_buffer) + 1
+                              : outgoing_message_length;
+
+        memmove(outgoing_message_buffer,
+                outgoing_message_buffer + drop,
+                outgoing_message_length - drop);
+        outgoing_message_length -= drop;
+        dropped = true;
+    }
+
+    memcpy(outgoing_message_buffer + outgoing_message_length, data, size);
+    outgoing_message_length += size;
+
+    if (dropped && !outgoing_overflow_warned) {
+        cprintf("Outgoing queue full, dropped oldest messages.\n");
+        outgoing_overflow_warned = true;
+    }
+
+    if (outgoing_message_length < capacity / 2) {
+        outgoing_overflow_warned = false;
+    }
+
+    return true;
+}
+
+void flush_outgoing_messages() {
+    if (connState != ConnectionState::Connected || outgoing_message_length == 0) {
+        return;
+    }
+
+    size_t chunk = outgoing_message_length;
+    if (chunk > 64) {
+        chunk = 64;
+    }
+
+    size_t sent = ipts.write(outgoing_message_buffer, chunk);
+    if (sent == 0 || sent > outgoing_message_length) {
+        return;
+    }
+
+    memmove(outgoing_message_buffer,
+            outgoing_message_buffer + sent,
+            outgoing_message_length - sent);
+    outgoing_message_length -= sent;
+}
+
 void handle_chat_line(const char* input) {
     if (!input || !*input) {
         return;
@@ -1095,7 +1167,7 @@ void handle_chat_line(const char* input) {
 
     char payload[640];
     snprintf(payload, sizeof(payload), "[%s]: %s\n", local_sender_name, input);
-    ipts.write(payload, strlen(payload));
+    enqueue_outgoing_message(payload, strlen(payload));
 
     char display[640];
     snprintf(display, sizeof(display), "[%s]: %s\n", local_sender_name, input);
@@ -1147,6 +1219,7 @@ void start_network_loop() {
             remote_mode = false;
             selected_peer_index = -1;
             incoming_line_length = 0;
+            outgoing_message_length = 0;
 
             t2input.free_buffer();
 
@@ -1163,6 +1236,8 @@ void start_network_loop() {
             key_pending = false;
             t2input.handle_keyevt(pending_event, pending_keycode);
         }
+
+        flush_outgoing_messages();
 
         char rbuf[101];
         size_t size;
