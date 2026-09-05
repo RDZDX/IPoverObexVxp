@@ -16,7 +16,7 @@ A symmetric Bluetooth peer-to-peer chat application for MRE phones (including No
 
 - [IPoverObexVxp_BT_Chat.vxp](https://rdzdx.github.io/IPoverObexVxp/IPoverObexVxp_BT_Chat.vxp)
 
-![alt text](https://rdzdx.github.io/IPoverObexVxp/picture.jpg)
+![alt text](https://rdzdx.github.io/IPoverObexVxp/picture3.jpg)
 
 ## Nokia Phone Signing
 
