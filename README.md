@@ -12,6 +12,12 @@ A symmetric Bluetooth peer-to-peer chat application for MRE phones (including No
    - **Connect** to pick a paired device and connect.
 5. Type message text and press OK to send.
 
+## File
+
+- [IPoverObexVxp_BT_Chat.vxp](https://rdzdx.github.io/IPoverObexVxp/IPoverObexVxp_BT_Chat.vxp)
+
+![alt text](https://rdzdx.github.io/IPoverObexVxp/picture.jpg)
+
 ## Nokia Phone Signing
 
 For use on Nokia mobile phones, the application must be signed using the IMSI code of your SIM card.
