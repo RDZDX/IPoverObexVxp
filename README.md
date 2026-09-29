@@ -27,6 +27,7 @@ More information: https://vxpatch.luxferre.top
 
 - [IPoverObexTest.vxp](https://rdzdx.github.io/IPoverObexVxp/IPoverObexTest.vxp)
 - [IPoverObexVxp_BT_Chat.vxp](https://rdzdx.github.io/IPoverObexVxp/IPoverObexVxp_BT_Chat.vxp)
+- [IPoverObexVxp_BT_Chat_Gui.vxp](https://rdzdx.github.io/IPoverObexVxp/IPoverObexVxp_BT_Chat_Gui.vxp)
 
 ![alt text](https://rdzdx.github.io/IPoverObexVxp/picture.jpg)
 ![alt text](https://rdzdx.github.io/IPoverObexVxp/picture1.jpg)
