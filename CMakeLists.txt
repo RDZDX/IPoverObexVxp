@@ -4,7 +4,7 @@ project ("IPoverObexVxp_BT_Chat_Gui")
 
 set(APP_NAME "IPoverObexVxp_BT_Chat_Gui")
 set(DEVELOPER_NAME "Ximik_Boda")
-set(RAM "1500") #Ram requirement (3250 in kb)
+set(RAM "3250") #Ram requirement (3250 in kb)
 set(IMSI "1234567890" CACHE STRING "Imsi of first SIM-card")
 set(API "Audio File SIM_card Sec SysStorage SysFile ProMng BT") #Api for app,
 set(APPID "0") #App id, special values: -1 is personal (imsi), 0 is in developing
